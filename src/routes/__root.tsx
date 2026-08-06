@@ -47,6 +47,10 @@ export const Route = createRootRouteWithContext<{
         name: 'description',
         content: 'External Neon and Upstash monitoring for client systems.',
       },
+      {
+        name: 'theme-color',
+        content: '#ffffff',
+      },
     ],
     links: [
       {
@@ -82,9 +86,15 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const { token } = Route.useRouteContext()
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{const t=localStorage.getItem('peek-theme');const d=t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light';const m=document.querySelector('meta[name=theme-color]');if(m)m.content=d?'#171717':'#ffffff'}catch{}",
+          }}
+        />
       </head>
       <body>
         <a className="skip-link" href="#main-content">

@@ -22,7 +22,7 @@ Status always pairs color with an icon and label. Charts are monochrome by defau
 
 ## Typography
 
-Use Geist Sans for UI and Geist Mono for telemetry. Product sizing is fixed, compact, and based on a 1.125–1.2 ratio. Headings balance; prose wraps prettily. Dynamic numbers use tabular numerals.
+Use Poppins everywhere, including telemetry. Weight creates hierarchy; no secondary or monospace typeface is allowed. Product sizing is fixed, compact, and based on a 1.125–1.2 ratio. Headings balance; prose wraps prettily. Dynamic numbers use tabular numerals.
 
 ## Layout
 
@@ -34,7 +34,8 @@ Use only local shadcn/ui primitives and compositions for interactive UI. Keep co
 
 Key compositions:
 
-- App shell: Sidebar on desktop, Sheet on narrow viewports.
+- App shell: persistent Sidebar on desktop, Sheet on narrow viewports, and intent-preloaded TanStack routes.
+- Selection: searchable shadcn Command + Popover compositions for clients and projects; selection updates immediately while the shared shell remains mounted.
 - Attention: Alert with severity icon, explanation, and one action.
 - Provider evidence: semantic sections using Badge, Separator, Tooltip, and Button.
 - Signals: shadcn Chart with a single selected metric and textual summary.

@@ -1,13 +1,16 @@
+import { Link, useLocation } from '@tanstack/react-router'
 import {
   Activity,
   ChevronsUpDown,
   Database,
   Gauge,
   LogOut,
+  PanelLeft,
   Settings,
 } from 'lucide-react'
 
 import { authClient } from '#/lib/auth-client'
+import { Button } from '#/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,34 +29,64 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
+  useSidebar,
 } from '#/components/ui/sidebar'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '#/components/ui/tooltip'
+import { PeekMark } from './peek-mark'
+
+const navigation = [
+  { label: 'Overview', href: '/', icon: Gauge },
+  { label: 'Checks', href: '/checks', icon: Activity },
+  { label: 'Connections', href: '/connections', icon: Database },
+  { label: 'Settings', href: '/settings', icon: Settings },
+] as const
 
 export function AppSidebar({
   user,
 }: {
   user: { name: string; email: string }
 }) {
+  const location = useLocation()
+  const { isMobile, setOpenMobile, state, toggleSidebar } = useSidebar()
+
   async function signOut() {
     await authClient.signOut()
     window.location.reload()
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r-0">
-      <SidebarHeader className="p-2">
+    <Sidebar collapsible="icon" variant="inset">
+      <SidebarHeader>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="hover:bg-white/10">
-              <span className="grid size-8 shrink-0 place-items-center rounded-md bg-white text-xs font-bold text-black">
-                P
-              </span>
-              <span className="grid flex-1 text-left leading-tight">
-                <span className="truncate font-medium text-white">Peek</span>
-                <span className="truncate text-xs text-white/45">
-                  Infrastructure monitor
-                </span>
-              </span>
-            </SidebarMenuButton>
+          <SidebarMenuItem className="flex items-center justify-between">
+            {isMobile ? (
+              <>
+                <PeekMark />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <SidebarTrigger className="size-8" />
+                  </TooltipTrigger>
+                  <TooltipContent>Close sidebar</TooltipContent>
+                </Tooltip>
+              </>
+            ) : (
+              <Button
+                aria-expanded={state === 'expanded'}
+                aria-label="Toggle sidebar"
+                className="group/toggle relative size-8"
+                onClick={toggleSidebar}
+                size="icon"
+                variant="ghost"
+              >
+                <PeekMark className="transition-opacity duration-150 motion-reduce:transition-none group-hover/toggle:opacity-0" />
+                <PanelLeft className="absolute size-4 opacity-0 transition-opacity duration-150 motion-reduce:transition-none group-hover/toggle:opacity-100" />
+              </Button>
+            )}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
@@ -62,60 +95,60 @@ export function AppSidebar({
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton isActive tooltip="Overview">
-                  <Gauge />
-                  <span>Overview</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Checks">
-                  <Activity />
-                  <span>Checks</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Connections">
-                  <Database />
-                  <span>Connections</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Settings">
-                  <Settings />
-                  <span>Settings</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {navigation.map((item) => {
+                const active =
+                  item.href === '/'
+                    ? location.pathname === '/'
+                    : location.pathname.startsWith(item.href)
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+                      <Link
+                        activeOptions={{ exact: item.href === '/' }}
+                        onClick={() => {
+                          if (isMobile) setOpenMobile(false)
+                        }}
+                        preload="intent"
+                        to={item.href}
+                      >
+                        <item.icon aria-hidden="true" />
+                        <span>{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-2">
+      <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg" className="hover:bg-white/10">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-white/10 text-xs font-medium text-white">
+                <SidebarMenuButton
+                  className="data-[state=open]:bg-sidebar-accent"
+                  size="lg"
+                >
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full border border-sidebar-border bg-sidebar-accent text-xs font-medium">
                     {user.name.charAt(0).toUpperCase()}
                   </span>
-                  <span className="grid flex-1 text-left leading-tight">
-                    <span className="truncate text-sm text-white">
-                      {user.name}
-                    </span>
-                    <span className="truncate text-xs text-white/45">
+                  <span className="grid min-w-0 flex-1 text-left leading-tight">
+                    <span className="truncate text-sm font-medium">{user.name}</span>
+                    <span className="truncate text-xs text-sidebar-foreground/55">
                       {user.email}
                     </span>
                   </span>
-                  <ChevronsUpDown className="ml-auto text-white/45" />
+                  <ChevronsUpDown className="ml-auto text-sidebar-foreground/55" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                side="right"
                 align="end"
+                className="w-64"
+                side={isMobile ? 'bottom' : 'right'}
                 sideOffset={8}
-                className="w-56"
               >
                 <DropdownMenuLabel className="font-normal">
                   <p className="truncate text-sm font-medium">{user.name}</p>
@@ -125,7 +158,7 @@ export function AppSidebar({
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => void signOut()}>
-                  <LogOut />
+                  <LogOut aria-hidden="true" />
                   Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>

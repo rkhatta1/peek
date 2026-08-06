@@ -75,6 +75,12 @@ For code-path attribution, add OpenTelemetry to the CRM and emit slow-operation/
 - Explicit demo mode when server-side provider credentials are absent.
 - Threshold evaluation for stale data, provider failures, Neon deadlocks/query insights, and Upstash p99 latency.
 - Four unit tests for normalization and threshold behavior, plus browser verification of sign-up and dashboard refresh.
+- Persistent Vercel-inspired client/project navigation with route-level code
+  splitting for overview, checks, connections, and settings.
+- Searchable shadcn client/project selectors, shared project scope, responsive
+  sidebar collapse behavior, and synchronized light/dark preferences.
+- Self-hosted Poppins 400/500/600 Latin assets across all interface and telemetry
+  text; moss remains a rare status/identity accent.
 
 ## Remaining production decisions
 
