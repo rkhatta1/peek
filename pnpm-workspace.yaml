@@ -1,0 +1,6 @@
+minimumReleaseAge: 20160
+
+allowBuilds:
+  esbuild: true
+  lightningcss: true
+  sharp: set this to true or false

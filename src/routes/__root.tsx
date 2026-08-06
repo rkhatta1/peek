@@ -1,0 +1,111 @@
+/// <reference types="vite/client" />
+
+import {
+  HeadContent,
+  Scripts,
+  createRootRouteWithContext,
+} from '@tanstack/react-router'
+import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
+import { TanStackDevtools } from '@tanstack/react-devtools'
+import type { ConvexQueryClient } from '@convex-dev/react-query'
+import { createServerFn } from '@tanstack/react-start'
+
+import ConvexProvider from '../integrations/convex/provider'
+import { getToken } from '../lib/auth-server'
+import { Button } from '../components/ui/button'
+
+import appCss from '../styles.css?url'
+
+const getAuth = createServerFn({ method: 'GET' }).handler(async () => {
+  return await getToken()
+})
+
+export const Route = createRootRouteWithContext<{
+  convexQueryClient: ConvexQueryClient
+}>()({
+  beforeLoad: async ({ context }) => {
+    const token = await getAuth()
+    if (token) {
+      context.convexQueryClient.serverHttpClient?.setAuth(token)
+    }
+    return { token, isAuthenticated: Boolean(token) }
+  },
+  head: () => ({
+    meta: [
+      {
+        charSet: 'utf-8',
+      },
+      {
+        name: 'viewport',
+        content:
+          'width=device-width, initial-scale=1, viewport-fit=cover',
+      },
+      {
+        title: 'Peek · Infrastructure monitoring',
+      },
+      {
+        name: 'description',
+        content: 'External Neon and Upstash monitoring for client systems.',
+      },
+    ],
+    links: [
+      {
+        rel: 'stylesheet',
+        href: appCss,
+      },
+    ],
+  }),
+  notFoundComponent: NotFoundPage,
+  shellComponent: RootDocument,
+})
+
+function NotFoundPage() {
+  return (
+    <main id="main-content" className="grid min-h-svh place-items-center p-6">
+      <div className="max-w-sm text-center">
+        <p className="text-sm font-medium text-muted-foreground">404</p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">
+          Page not found
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          The page you requested does not exist in Peek.
+        </p>
+        <Button asChild className="mt-5">
+          <a href="/">Return to overview</a>
+        </Button>
+      </div>
+    </main>
+  )
+}
+
+function RootDocument({ children }: { children: React.ReactNode }) {
+  const { token } = Route.useRouteContext()
+
+  return (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        <a className="skip-link" href="#main-content">
+          Skip to main content
+        </a>
+        <ConvexProvider initialToken={token}>
+          {children}
+          {import.meta.env.DEV ? (
+            <TanStackDevtools
+              config={{ position: 'bottom-right' }}
+              plugins={[
+                {
+                  name: 'TanStack Router',
+                  render: <TanStackRouterDevtoolsPanel />,
+                },
+              ]}
+            />
+          ) : null}
+        </ConvexProvider>
+        <Scripts />
+      </body>
+    </html>
+  )
+}
