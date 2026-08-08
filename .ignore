@@ -1,0 +1,3 @@
+# Keep local handoff docs discoverable by Codex `@` search.
+!.handoff/
+!.handoff/**
