@@ -1,127 +1,64 @@
-/// <reference types="node" />
-
 import { v } from 'convex/values'
 
-import { authComponent } from './auth'
-import { mutation, query } from './_generated/server'
-import { evaluateSnapshot, type ProviderSnapshot } from './lib/monitoring'
+import { query } from './_generated/server'
+import { requireActiveProjectForOwner, requireOwner } from './lib/domain'
+import { projectValidator, providerValidator, rawStatusValidator, serviceValidator } from './lib/validators'
 
 const HISTORY_LIMIT = 96
 
-function liveMode(provider: 'neon' | 'upstash') {
-  if (provider === 'neon') {
-    return Boolean(process.env.NEON_DATABASE_URL)
-  }
-  return Boolean(
-    process.env.UPSTASH_EMAIL &&
-      process.env.UPSTASH_API_KEY &&
-      process.env.UPSTASH_DATABASE_ID,
-  )
-}
-
-export const ensureWorkspace = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const user = await authComponent.getAuthUser(ctx)
-    const existing = await ctx.db
-      .query('workspaces')
-      .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
-      .unique()
-
-    if (existing) return existing._id
-
-    const createdAt = Date.now()
-    const workspaceId = await ctx.db.insert('workspaces', {
-      ownerId: user._id,
-      name: process.env.PEEK_WORKSPACE_NAME ?? 'Client infrastructure',
-      createdAt,
-    })
-
-    await Promise.all([
-      ctx.db.insert('connections', {
-        workspaceId,
-        ownerId: user._id,
-        provider: 'neon',
-        name: process.env.NEON_PROJECT_NAME ?? 'Neon Postgres',
-        environment: process.env.NEON_ENVIRONMENT ?? 'Production',
-        mode: liveMode('neon') ? 'live' : 'demo',
-        active: true,
-        createdAt,
-      }),
-      ctx.db.insert('connections', {
-        workspaceId,
-        ownerId: user._id,
-        provider: 'upstash',
-        name: process.env.UPSTASH_DATABASE_NAME ?? 'Upstash Redis',
-        environment: process.env.UPSTASH_ENVIRONMENT ?? 'Staging',
-        mode: liveMode('upstash') ? 'live' : 'demo',
-        active: true,
-        createdAt,
-      }),
-    ])
-
-    return workspaceId
-  },
+const snapshotValidator = v.object({
+  _id: v.id('serviceMetricSnapshots'),
+  _creationTime: v.number(),
+  clientId: v.id('clients'),
+  projectId: v.id('projects'),
+  serviceId: v.id('serviceConnections'),
+  provider: providerValidator,
+  capturedAt: v.number(),
+  status: rawStatusValidator,
+  connections: v.number(),
+  cacheHitRatio: v.number(),
+  requestCount: v.optional(v.number()),
+  storageBytes: v.optional(v.number()),
+  p99LatencyMs: v.optional(v.number()),
+  deadlocks: v.optional(v.number()),
+  logicalSizeBytes: v.optional(v.number()),
+  queryInsightsEnabled: v.optional(v.boolean()),
+  errorCode: v.optional(v.string()),
 })
 
 export const getOverview = query({
-  args: {},
-  handler: async (ctx) => {
-    const user = await authComponent.getAuthUser(ctx)
-    const workspace = await ctx.db
-      .query('workspaces')
-      .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
-      .unique()
-
-    if (!workspace) return null
-
-    const connections = await ctx.db
-      .query('connections')
-      .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
-      .take(8)
-
+  args: { projectId: v.id('projects') },
+  returns: v.object({
+    project: projectValidator,
+    providers: v.array(
+      v.object({
+        connection: serviceValidator,
+        latest: v.union(v.null(), snapshotValidator),
+        history: v.array(snapshotValidator),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const ownerId = await requireOwner(ctx)
+    const project = await requireActiveProjectForOwner(ctx, ownerId, args.projectId)
+    const services = await ctx.db
+      .query('serviceConnections')
+      .withIndex('by_project_and_status', (q) =>
+        q.eq('projectId', project._id).eq('status', 'active'),
+      )
+      .take(20)
     const providers = await Promise.all(
-      connections.map(async (connection) => {
-        const history = await ctx.db
-          .query('metricSnapshots')
-          .withIndex('by_connection_captured', (q) =>
-            q.eq('connectionId', connection._id),
-          )
+      services.map(async ({ ownerId: _ownerId, normalizedName: _normalizedName, status: _status, ...connection }) => {
+        const snapshots = await ctx.db
+          .query('serviceMetricSnapshots')
+          .withIndex('by_service_and_capturedAt', (q) => q.eq('serviceId', connection._id))
           .order('desc')
           .take(HISTORY_LIMIT)
-        const latest = history[0]
-        const evaluation = latest
-          ? evaluateSnapshot(latest as ProviderSnapshot)
-          : null
-
-        return {
-          connection,
-          latest,
-          evaluation,
-          history: history.reverse(),
-        }
+        const history = snapshots.map(({ ownerId: _snapshotOwnerId, ...snapshot }) => snapshot)
+        return { connection, latest: history[0] ?? null, history: history.reverse() }
       }),
     )
-
-    return { workspace, providers }
-  },
-})
-
-export const getConnectionHistory = query({
-  args: { connectionId: v.id('connections') },
-  handler: async (ctx, args) => {
-    const user = await authComponent.getAuthUser(ctx)
-    const connection = await ctx.db.get(args.connectionId)
-    if (!connection || connection.ownerId !== user._id) {
-      throw new Error('Connection not found')
-    }
-
-    return await ctx.db
-      .query('metricSnapshots')
-      .withIndex('by_connection_captured', (q) =>
-        q.eq('connectionId', args.connectionId),
-      )
-      .order('desc')
-      .take(HISTORY_LIMIT)
+    const { ownerId: _ownerId, normalizedName: _normalizedName, status: _status, ...publicProject } = project
+    return { project: publicProject, providers }
   },
 })

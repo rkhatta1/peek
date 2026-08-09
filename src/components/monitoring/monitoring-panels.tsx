@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
-import type { ComponentProps } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
 
 import { Badge } from '#/components/ui/badge'
@@ -39,9 +39,6 @@ const chartConfig = {
   value: { label: 'Cache hit ratio', color: 'var(--foreground)' },
 } satisfies ChartConfig
 
-const demoSeries = [96.1, 96.4, 97, 96.8, 97.2, 97.5, 97.1, 97.8, 97.6, 98, 97.9, 98.2]
-  .map((value, index) => ({ time: `${11 - index}h`, value }))
-
 type ProviderCardProps = Omit<ComponentProps<typeof Card>, 'children'> & {
   item: ProviderItem
 }
@@ -49,13 +46,11 @@ type ProviderCardProps = Omit<ComponentProps<typeof Card>, 'children'> & {
 export function ProviderCard({ className, item, ...props }: ProviderCardProps) {
   const latest = item.latest
   const isNeon = item.connection.provider === 'neon'
-  const chartData = item.history.length
-    ? item.history.map((point) => ({
-        time: formatTime(point.capturedAt),
-        value: Number(((point.cacheHitRatio ?? 0) * 100).toFixed(1)),
-      }))
-    : demoSeries
-  const attention = item.evaluation?.status !== 'operational' && item.connection.mode !== 'demo'
+  const chartData = item.history.map((point) => ({
+    time: formatTime(point.capturedAt),
+    value: Number((point.cacheHitRatio * 100).toFixed(1)),
+  }))
+  const attention = item.evaluation?.status !== 'operational'
 
   return (
     <Card
@@ -87,15 +82,29 @@ export function ProviderCard({ className, item, ...props }: ProviderCardProps) {
         <div className="grid grid-cols-3 divide-x border-b">
           <Metric
             label="Cache hit"
-            value={latest ? `${(latest.cacheHitRatio * 100).toFixed(1)}%` : '96.8%'}
+            value={latest ? `${(latest.cacheHitRatio * 100).toFixed(1)}%` : '—'}
           />
           <Metric
             label={isNeon ? 'Connections' : 'Requests'}
-            value={isNeon ? String(latest?.connections ?? 1) : String(latest?.requestCount ?? 17)}
+            value={
+              latest
+                ? isNeon
+                  ? String(latest.connections)
+                  : String(latest.requestCount ?? 0)
+                : '—'
+            }
           />
           <Metric
             label={isNeon ? 'Database size' : 'Storage'}
-            value={formatBytes(isNeon ? latest?.logicalSizeBytes ?? 30_900_000 : latest?.storageBytes ?? 73)}
+            value={
+              latest
+                ? formatBytes(
+                    isNeon
+                      ? latest.logicalSizeBytes ?? 0
+                      : latest.storageBytes ?? 0,
+                  )
+                : '—'
+            }
           />
         </div>
         <div className="px-3 pb-2 pt-5">
@@ -134,56 +143,104 @@ export function ChecksTable({
   providers,
   rows = buildCheckRows(providers),
   compact = false,
+  onRowOpen,
+  renderActions,
 }: {
   providers: ProviderItem[]
   rows?: CheckRow[]
   compact?: boolean
+  onRowOpen?: (row: CheckRow) => void
+  renderActions?: (row: CheckRow) => ReactNode
 }) {
   return (
     <Card className="gap-0 overflow-hidden py-0 shadow-none">
       {!compact ? (
         <CardHeader className="border-b px-5 py-4">
           <CardTitle className="text-sm">Checks</CardTitle>
-          <CardDescription className="text-xs">Latest evidence for the selected projects</CardDescription>
+          <CardDescription className="text-xs">
+            Latest evidence for the selected project
+          </CardDescription>
         </CardHeader>
       ) : null}
-      <Table>
+      <Table className="table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-12">Status</TableHead>
+            <TableHead className="w-16">Status</TableHead>
             <TableHead>Check</TableHead>
-            <TableHead className="hidden lg:table-cell">Project</TableHead>
-            <TableHead className="hidden md:table-cell">Provider</TableHead>
-            <TableHead className="text-right">Observed</TableHead>
+            <TableHead className="hidden w-40 lg:table-cell">Service</TableHead>
+            <TableHead className="hidden w-36 md:table-cell">Provider</TableHead>
+            <TableHead className="w-24 sm:w-32 lg:w-40">Observed</TableHead>
+            {renderActions ? (
+              <TableHead className="w-12">
+                <span className="sr-only">Actions</span>
+              </TableHead>
+            ) : null}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.length ? rows.map((row) => (
-            <TableRow key={row.id}>
-              <TableCell>
-                {row.severity === 'info' ? (
-                  <CheckCircle2 className="size-4 text-[#557a46]" aria-label="Passing" />
-                ) : (
-                  <AlertTriangle className="size-4 text-amber-600" aria-label="Attention" />
-                )}
-              </TableCell>
-              <TableCell>
-                <p className="font-medium">{row.title}</p>
-                <p className="mt-0.5 max-w-xl text-xs text-muted-foreground">{row.detail}</p>
-              </TableCell>
-              <TableCell className="hidden max-w-44 truncate text-muted-foreground lg:table-cell">
-                {row.project}
-              </TableCell>
-              <TableCell className="hidden capitalize text-muted-foreground md:table-cell">
-                {row.provider}
-              </TableCell>
-              <TableCell className="text-right text-xs text-muted-foreground tabular-nums">
-                {formatTime(row.observedAt)}
-              </TableCell>
-            </TableRow>
-          )) : (
+          {rows.length ? (
+            rows.map((row) => (
+              <TableRow
+                aria-label={onRowOpen ? `View ${row.title}` : undefined}
+                className={onRowOpen ? 'cursor-pointer' : undefined}
+                key={row.id}
+                onClick={onRowOpen ? () => onRowOpen(row) : undefined}
+                onKeyDown={
+                  onRowOpen
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          onRowOpen(row)
+                        }
+                      }
+                    : undefined
+                }
+                tabIndex={onRowOpen ? 0 : undefined}
+              >
+                <TableCell>
+                  {row.severity === 'info' ? (
+                    <CheckCircle2
+                      className="size-4 text-[#557a46]"
+                      aria-label="Passing"
+                    />
+                  ) : (
+                    <AlertTriangle
+                      className="size-4 text-amber-600"
+                      aria-label="Attention"
+                    />
+                  )}
+                </TableCell>
+                <TableCell>
+                  <p className="font-medium">{row.title}</p>
+                  <p className="mt-0.5 max-w-xl text-xs text-muted-foreground">
+                    {row.detail}
+                  </p>
+                </TableCell>
+                <TableCell className="hidden truncate text-muted-foreground lg:table-cell">
+                  {row.service}
+                </TableCell>
+                <TableCell className="hidden capitalize text-muted-foreground md:table-cell">
+                  {row.provider}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground tabular-nums">
+                  {formatTime(row.observedAt)}
+                </TableCell>
+                {renderActions ? (
+                  <TableCell
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
+                    {renderActions(row)}
+                  </TableCell>
+                ) : null}
+              </TableRow>
+            ))
+          ) : (
             <TableRow>
-              <TableCell className="h-28 text-center text-muted-foreground" colSpan={5}>
+              <TableCell
+                className="h-28 text-center text-muted-foreground"
+                colSpan={renderActions ? 6 : 5}
+              >
                 No checks in this view.
               </TableCell>
             </TableRow>

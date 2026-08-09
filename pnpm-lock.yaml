@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@convex-dev/better-auth':
         specifier: ^0.12.5
-        version: 0.12.5(@standard-schema/spec@1.1.0)(better-auth@1.6.15(@tanstack/react-start@1.168.32(crossws@0.4.10(srvx@0.11.22))(esbuild@0.27.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.0)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)))(next@16.2.11(@babel/core@7.29.7)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)(vitest@4.1.10(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0))))(convex@1.42.3(react@19.2.8))(react@19.2.8)(typescript@6.0.3)
+        version: 0.12.5(@standard-schema/spec@1.1.0)(better-auth@1.6.15(@tanstack/react-start@1.168.32(crossws@0.4.10(srvx@0.11.22))(esbuild@0.27.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.0)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)))(next@16.2.11(@babel/core@7.29.7)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)(vitest@4.1.10(@edge-runtime/vm@5.0.0)(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0))))(convex@1.42.3(react@19.2.8))(react@19.2.8)(typescript@6.0.3)
       '@convex-dev/react-query':
         specifier: 0.1.0
         version: 0.1.0(@tanstack/react-query@5.101.4(react@19.2.8))(convex@1.42.3(react@19.2.8))
@@ -46,7 +46,7 @@ importers:
         version: 1.168.32(crossws@0.4.10(srvx@0.11.22))(esbuild@0.27.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.0)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0))
       better-auth:
         specifier: 1.6.15
-        version: 1.6.15(@tanstack/react-start@1.168.32(crossws@0.4.10(srvx@0.11.22))(esbuild@0.27.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.0)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)))(next@16.2.11(@babel/core@7.29.7)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)(vitest@4.1.10(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)))
+        version: 1.6.15(@tanstack/react-start@1.168.32(crossws@0.4.10(srvx@0.11.22))(esbuild@0.27.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.0)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)))(next@16.2.11(@babel/core@7.29.7)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)(vitest@4.1.10(@edge-runtime/vm@5.0.0)(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -62,6 +62,9 @@ importers:
       lucide-react:
         specifier: ^0.577.0
         version: 0.577.0(react@19.2.8)
+      motion:
+        specifier: ^12.42.2
+        version: 12.42.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       nitro:
         specifier: 3.0.260610-beta
         version: 3.0.260610-beta(chokidar@5.0.0)(jiti@2.7.0)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0))
@@ -86,7 +89,13 @@ importers:
       tw-animate-css:
         specifier: ^1.3.6
         version: 1.4.0
+      vaul:
+        specifier: ^1.1.2
+        version: 1.1.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
     devDependencies:
+      '@edge-runtime/vm':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@rolldown/plugin-babel':
         specifier: ^0.2.3
         version: 0.2.3(@babel/core@7.29.7)(rolldown@1.2.0)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0))
@@ -114,6 +123,9 @@ importers:
       babel-plugin-react-compiler:
         specifier: ^1.0.0
         version: 1.0.0
+      convex-test:
+        specifier: ^0.0.54
+        version: 0.0.54(convex@1.42.3(react@19.2.8))
       typescript:
         specifier: ^6.0.2
         version: 6.0.3
@@ -122,7 +134,7 @@ importers:
         version: 8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)
       vitest:
         specifier: ^4.1.10
-        version: 4.1.10(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0))
+        version: 4.1.10(@edge-runtime/vm@5.0.0)(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0))
 
 packages:
 
@@ -294,6 +306,14 @@ packages:
     peerDependencies:
       '@tanstack/react-query': ^5.0.0
       convex: ^1.29.3
+
+  '@edge-runtime/primitives@6.0.0':
+    resolution: {integrity: sha512-FqoxaBT+prPBHBwE1WXS1ocnu/VLTQyZ6NMUBAdbP7N2hsFTTxMC/jMu2D/8GAlMQfxeuppcPuCUk/HO3fpIvA==}
+    engines: {node: '>=18'}
+
+  '@edge-runtime/vm@5.0.0':
+    resolution: {integrity: sha512-NKBGBSIKUG584qrS1tyxVpX/AKJKQw5HgjYEnPLC0QsTw79JrGn+qUr8CXFb955Iy7GUdiiUv1rJ6JBGvaKb6w==}
+    engines: {node: '>=18'}
 
   '@emnapi/core@1.11.1':
     resolution: {integrity: sha512-RSvbQmHzdKzNsLYa/wHrbc3KN4sYLKAdPZxqiM2HATqv/SBk2/ENSHpvXGaLOMcsAyz0poEGqkmmKYG3OWiJEQ==}
@@ -2451,6 +2471,11 @@ packages:
       zod:
         optional: true
 
+  convex-test@0.0.54:
+    resolution: {integrity: sha512-C0v2SQcuxrELAJRNzE6fQ686XDPor7UFoC22jcoJXeCRqhLo8ZIMZ4jyUHoo1UdAL2enCb0AbiprCVpLDN8u9Q==}
+    peerDependencies:
+      convex: ^1.32.0
+
   convex@1.42.3:
     resolution: {integrity: sha512-7Tz/lH6UlZdiqzLPF/zrlH6Rlo/DOp836dL+GZkUMEQ2jaGGNnBIiIDcOOiEqtfSehuQ65r/rdNMnb4LupowaA==}
     engines: {node: '>=18.0.0', npm: '>=7.0.0'}
@@ -2652,6 +2677,20 @@ packages:
 
   fetchdts@0.1.7:
     resolution: {integrity: sha512-YoZjBdafyLIop9lSxXVI33oLD5kN31q4Td+CasofLLYeLXRFeOsuOw0Uo+XNRi9PZlbfdlN2GmRtm4tCEQ9/KA==}
+
+  framer-motion@12.42.2:
+    resolution: {integrity: sha512-5XY9luDiu0oHfHBjpDthFMh0ES+122w6p/papSJBweMkO8Sn+PW2QaEgRblQBpWFnuvZS5qvarpt/hO2pjGmnw==}
+    peerDependencies:
+      '@emotion/is-prop-valid': '*'
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@emotion/is-prop-valid':
+        optional: true
+      react:
+        optional: true
+      react-dom:
+        optional: true
 
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
@@ -2911,6 +2950,26 @@ packages:
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
+
+  motion-dom@12.42.2:
+    resolution: {integrity: sha512-5gIMWLp/PycBtJRJWRgjxke5n8dlvkSn2DrYW+tr3XcqAZY1xZh6BJyooJXCM8wdfM7wfMjkBJNLge1CKPUIRA==}
+
+  motion-utils@12.39.0:
+    resolution: {integrity: sha512-8nadJAJjTtqRkmRF36FoJTrywK9nnFmnPwnSMyxaOCU7GDjN9RTMJIxx9De8ErM+vpPhMccr/6fo5WciyQLnMQ==}
+
+  motion@12.42.2:
+    resolution: {integrity: sha512-Atvv11yUKIid41cVrRBDVX5m8tF8kNpExRSlbpt6APClhDjtwQssgFHhQzejxw7/7YYbjHSPKBVbHo05BuJT5Q==}
+    peerDependencies:
+      '@emotion/is-prop-valid': '*'
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@emotion/is-prop-valid':
+        optional: true
+      react:
+        optional: true
+      react-dom:
+        optional: true
 
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
@@ -3417,6 +3476,12 @@ packages:
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
 
+  vaul@1.1.2:
+    resolution: {integrity: sha512-ZFkClGpWyI2WUQjdLJ/BaGuV6AVQiJ3uELGk3OYtP+B6yCO7Cmn9vPFXVJkRaGkOJu3m8bQMgtyzNHixULceQA==}
+    peerDependencies:
+      react: ^16.8 || ^17.0 || ^18.0 || ^19.0.0 || ^19.0.0-rc
+      react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0.0 || ^19.0.0-rc
+
   victory-vendor@37.3.6:
     resolution: {integrity: sha512-SbPDPdDBYp+5MJHhBCAyI7wKM3d5ivekigc2Dk2s7pgbZ9wIgIBYGVw4zGHBml/qTFbexrofXW6Gu4noGxrOwQ==}
 
@@ -3735,10 +3800,10 @@ snapshots:
 
   '@better-fetch/fetch@1.3.1': {}
 
-  '@convex-dev/better-auth@0.12.5(@standard-schema/spec@1.1.0)(better-auth@1.6.15(@tanstack/react-start@1.168.32(crossws@0.4.10(srvx@0.11.22))(esbuild@0.27.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.0)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)))(next@16.2.11(@babel/core@7.29.7)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)(vitest@4.1.10(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0))))(convex@1.42.3(react@19.2.8))(react@19.2.8)(typescript@6.0.3)':
+  '@convex-dev/better-auth@0.12.5(@standard-schema/spec@1.1.0)(better-auth@1.6.15(@tanstack/react-start@1.168.32(crossws@0.4.10(srvx@0.11.22))(esbuild@0.27.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.0)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)))(next@16.2.11(@babel/core@7.29.7)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)(vitest@4.1.10(@edge-runtime/vm@5.0.0)(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0))))(convex@1.42.3(react@19.2.8))(react@19.2.8)(typescript@6.0.3)':
     dependencies:
       '@better-fetch/fetch': 1.3.1
-      better-auth: 1.6.15(@tanstack/react-start@1.168.32(crossws@0.4.10(srvx@0.11.22))(esbuild@0.27.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.0)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)))(next@16.2.11(@babel/core@7.29.7)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)(vitest@4.1.10(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)))
+      better-auth: 1.6.15(@tanstack/react-start@1.168.32(crossws@0.4.10(srvx@0.11.22))(esbuild@0.27.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.0)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)))(next@16.2.11(@babel/core@7.29.7)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)(vitest@4.1.10(@edge-runtime/vm@5.0.0)(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)))
       common-tags: 1.8.2
       convex: 1.42.3(react@19.2.8)
       convex-helpers: 0.1.120(@standard-schema/spec@1.1.0)(convex@1.42.3(react@19.2.8))(react@19.2.8)(typescript@6.0.3)(zod@4.4.3)
@@ -3757,6 +3822,12 @@ snapshots:
     dependencies:
       '@tanstack/react-query': 5.101.4(react@19.2.8)
       convex: 1.42.3(react@19.2.8)
+
+  '@edge-runtime/primitives@6.0.0': {}
+
+  '@edge-runtime/vm@5.0.0':
+    dependencies:
+      '@edge-runtime/primitives': 6.0.0
 
   '@emnapi/core@1.11.1':
     dependencies:
@@ -5605,7 +5676,7 @@ snapshots:
 
   baseline-browser-mapping@2.11.1: {}
 
-  better-auth@1.6.15(@tanstack/react-start@1.168.32(crossws@0.4.10(srvx@0.11.22))(esbuild@0.27.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.0)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)))(next@16.2.11(@babel/core@7.29.7)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)(vitest@4.1.10(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0))):
+  better-auth@1.6.15(@tanstack/react-start@1.168.32(crossws@0.4.10(srvx@0.11.22))(esbuild@0.27.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.0)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)))(next@16.2.11(@babel/core@7.29.7)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(solid-js@1.9.14)(vitest@4.1.10(@edge-runtime/vm@5.0.0)(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0))):
     dependencies:
       '@better-auth/core': 1.6.15(@better-auth/utils@0.4.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.5(zod@4.4.3))(jose@6.2.4)(kysely@0.29.4)(nanostores@1.4.1)
       '@better-auth/drizzle-adapter': 1.6.15(@better-auth/core@1.6.15(@better-auth/utils@0.4.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.5(zod@4.4.3))(jose@6.2.4)(kysely@0.29.4)(nanostores@1.4.1))(@better-auth/utils@0.4.1)
@@ -5630,7 +5701,7 @@ snapshots:
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
       solid-js: 1.9.14
-      vitest: 4.1.10(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0))
+      vitest: 4.1.10(@edge-runtime/vm@5.0.0)(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0))
     transitivePeerDependencies:
       - '@cloudflare/workers-types'
       - '@opentelemetry/api'
@@ -5709,6 +5780,10 @@ snapshots:
       react: 19.2.8
       typescript: 6.0.3
       zod: 4.4.3
+
+  convex-test@0.0.54(convex@1.42.3(react@19.2.8)):
+    dependencies:
+      convex: 1.42.3(react@19.2.8)
 
   convex@1.42.3(react@19.2.8):
     dependencies:
@@ -5853,6 +5928,15 @@ snapshots:
       picomatch: 4.0.5
 
   fetchdts@0.1.7: {}
+
+  framer-motion@12.42.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
+    dependencies:
+      motion-dom: 12.42.2
+      motion-utils: 12.39.0
+      tslib: 2.8.1
+    optionalDependencies:
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
 
   fsevents@2.3.3:
     optional: true
@@ -6027,6 +6111,20 @@ snapshots:
   magic-string@0.30.21:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  motion-dom@12.42.2:
+    dependencies:
+      motion-utils: 12.39.0
+
+  motion-utils@12.39.0: {}
+
+  motion@12.42.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
+    dependencies:
+      framer-motion: 12.42.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      tslib: 2.8.1
+    optionalDependencies:
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
 
   ms@2.1.3: {}
 
@@ -6533,6 +6631,15 @@ snapshots:
 
   util-deprecate@1.0.2: {}
 
+  vaul@1.1.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
+    dependencies:
+      '@radix-ui/react-dialog': 1.1.21(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+    transitivePeerDependencies:
+      - '@types/react'
+      - '@types/react-dom'
+
   victory-vendor@37.3.6:
     dependencies:
       '@types/d3-array': 3.2.2
@@ -6567,7 +6674,7 @@ snapshots:
     optionalDependencies:
       vite: 8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)
 
-  vitest@4.1.10(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)):
+  vitest@4.1.10(@edge-runtime/vm@5.0.0)(@types/node@22.20.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)):
     dependencies:
       '@vitest/expect': 4.1.10
       '@vitest/mocker': 4.1.10(vite@8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0))
@@ -6590,6 +6697,7 @@ snapshots:
       vite: 8.1.5(@types/node@22.20.1)(esbuild@0.27.0)(jiti@2.7.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
+      '@edge-runtime/vm': 5.0.0
       '@types/node': 22.20.1
     transitivePeerDependencies:
       - msw

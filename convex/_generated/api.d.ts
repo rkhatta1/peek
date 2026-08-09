@@ -9,12 +9,25 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as cleanup from "../cleanup.js";
+import type * as clients from "../clients.js";
+import type * as codeConnectionActions from "../codeConnectionActions.js";
+import type * as codeConnectionInternal from "../codeConnectionInternal.js";
+import type * as codeConnections from "../codeConnections.js";
 import type * as collectors from "../collectors.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
+import type * as lib_codeAttribution from "../lib/codeAttribution.js";
+import type * as lib_domain from "../lib/domain.js";
 import type * as lib_monitoring from "../lib/monitoring.js";
+import type * as lib_providers from "../lib/providers.js";
+import type * as lib_secrets from "../lib/secrets.js";
+import type * as lib_validators from "../lib/validators.js";
 import type * as monitoring from "../monitoring.js";
-import type * as monitoringInternal from "../monitoringInternal.js";
+import type * as projects from "../projects.js";
+import type * as serviceActions from "../serviceActions.js";
+import type * as serviceInternal from "../serviceInternal.js";
+import type * as services from "../services.js";
 
 import type {
   ApiFromModules,
@@ -24,12 +37,25 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  cleanup: typeof cleanup;
+  clients: typeof clients;
+  codeConnectionActions: typeof codeConnectionActions;
+  codeConnectionInternal: typeof codeConnectionInternal;
+  codeConnections: typeof codeConnections;
   collectors: typeof collectors;
   crons: typeof crons;
   http: typeof http;
+  "lib/codeAttribution": typeof lib_codeAttribution;
+  "lib/domain": typeof lib_domain;
   "lib/monitoring": typeof lib_monitoring;
+  "lib/providers": typeof lib_providers;
+  "lib/secrets": typeof lib_secrets;
+  "lib/validators": typeof lib_validators;
   monitoring: typeof monitoring;
-  monitoringInternal: typeof monitoringInternal;
+  projects: typeof projects;
+  serviceActions: typeof serviceActions;
+  serviceInternal: typeof serviceInternal;
+  services: typeof services;
 }>;
 
 /**

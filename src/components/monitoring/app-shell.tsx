@@ -43,7 +43,7 @@ export function AppShell({
 
 function AppFrame() {
   const location = useLocation()
-  const { refreshing, refresh } = useMonitoring()
+  const { refreshing, refresh, selectedProject } = useMonitoring()
   const { theme, toggleTheme } = useTheme()
   const label = routeLabels[location.pathname] ?? 'Peek'
 
@@ -90,7 +90,7 @@ function AppFrame() {
             <TooltipTrigger asChild>
               <Button
                 aria-label="Refresh monitoring data"
-                disabled={refreshing}
+                disabled={refreshing || !selectedProject}
                 onClick={() => void refresh()}
                 size="icon"
                 variant="ghost"

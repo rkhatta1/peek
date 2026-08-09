@@ -1,8 +1,8 @@
 # Peek
 
 Peek is a focused external monitoring dashboard for client Neon Postgres and
-Upstash Redis systems. It uses TanStack Start, Convex, Better Auth, Tailwind CSS,
-and shadcn/ui.
+Upstash Redis systems, with GitHub/Vercel code attribution for provider events.
+It uses TanStack Start, Convex, Better Auth, Tailwind CSS, and shadcn/ui.
 
 ## Local setup
 
@@ -25,6 +25,7 @@ on the Convex deployment:
 ```bash
 pnpm convex env set SITE_URL http://localhost:3000
 pnpm convex env set BETTER_AUTH_SECRET <generated-secret>
+openssl rand -base64 32 | pnpm convex env set PEEK_CREDENTIAL_ENCRYPTION_KEY
 ```
 
 Keep the secret out of committed files. The TanStack app proxies `/api/auth/*`
@@ -32,22 +33,27 @@ to the Convex HTTP endpoint and passes the auth token into Convex SSR.
 
 ## Provider collection
 
-Set provider credentials in the Convex dashboard or with `pnpm convex env set`:
-
-```text
-NEON_DATABASE_URL
-UPSTASH_EMAIL
-UPSTASH_API_KEY
-UPSTASH_DATABASE_ID
-```
-
-Optional display labels are documented in `.env.example`. Without provider
-credentials, Peek enters an explicit demo mode and never presents sample values
-as live telemetry.
+Create a Client, create a Project for one app, then connect its Neon Postgres
+and Upstash Redis Services in the dashboard. Provider credentials are validated
+live, AES-256-GCM encrypted, and never returned by public Convex queries.
 
 Collectors run every 15 minutes and can also be triggered from the dashboard.
 Neon reads bounded `pg_stat_database` evidence; Upstash reads its Developer API
-stats endpoint. Secrets stay inside Convex actions.
+stats endpoint. Secret rotation and deletion are managed from Connections.
+
+See [`docs/codebase/provider-connections.md`](./docs/codebase/provider-connections.md)
+for credential rotation, least-privilege access, and collection bounds.
+
+## Code attribution
+
+Connect one GitHub repository and one Vercel project to each Peek Project. Event
+drawers resolve the latest commit on `main`, associated pull requests, and the
+latest ready production Vercel deployment at the event's observation time.
+
+Enter GitHub and Vercel tokens in the Code connection dialog. GitHub needs
+repository Contents read and Pull requests read; Vercel should use a
+project-scoped token. Tokens are encrypted with the same envelope as Service
+credentials and never returned by public queries.
 
 ## Quality checks
 

@@ -15,11 +15,11 @@ const config = defineConfig({
   },
   plugins: [
     devtools(),
-    nitro({ rollupConfig: { external: [/^@sentry\//] } }),
     tailwindcss(),
     tanstackStart(),
     viteReact(),
     babel({ presets: [reactCompilerPreset()] }),
+    nitro({ rollupConfig: { external: [/^@sentry\//] } }),
   ],
 })
 

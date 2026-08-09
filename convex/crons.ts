@@ -7,8 +7,8 @@ const crons = cronJobs()
 crons.interval(
   'collect Neon and Upstash metrics',
   { minutes: 15 },
-  internal.collectors.collectScheduled,
-  {},
+  internal.collectors.collectScheduledPage,
+  { cursor: null },
 )
 
 export default crons

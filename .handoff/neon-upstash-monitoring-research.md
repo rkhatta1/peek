@@ -1,7 +1,7 @@
 # Handoff: Neon + Upstash monitoring research
 
 **Date:** 2026-08-06  
-**Status:** Research complete; first monitoring application slice implemented.
+**Status:** Research complete; authenticated CRUD and live provider connections implemented.
 
 ## User goal
 
@@ -68,24 +68,42 @@ For code-path attribution, add OpenTelemetry to the CRM and emit slow-operation/
 
 - TanStack Start dashboard with a compact shadcn/ui shell and responsive auth flow.
 - Better Auth email/password sessions backed by the Convex Better Auth component.
-- Authenticated Convex workspace, connection, and metric snapshot domain model.
+- Authenticated Client → Project → Service domain model. A Project is one app;
+  each Client can own many Projects and each Project can own many Services.
 - Neon `pg_stat_database` collector and Upstash Developer API stats collector.
 - Fifteen-minute scheduled collection plus an optimistic manual refresh.
-- Bounded, indexed overview reads: eight connections and 96 snapshots per connection.
-- Explicit demo mode when server-side provider credentials are absent.
+- AES-256-GCM encrypted, write-only provider credentials with owner-bound
+  authenticated data and previous-key support for encryption-key rotation.
+- Live validation before Service creation or credential rotation; public queries
+  never return plaintext, ciphertext, IVs, or key metadata.
+- Bounded, indexed overview reads: 20 Services and 96 snapshots per Service.
+- Paginated scheduled collection: 25 Services per page and five concurrent
+  provider requests.
 - Threshold evaluation for stale data, provider failures, Neon deadlocks/query insights, and Upstash p99 latency.
-- Four unit tests for normalization and threshold behavior, plus browser verification of sign-up and dashboard refresh.
+- Twelve tests covering normalization/thresholds, provider validation, secret
+  encryption, tenant isolation, CRUD, redaction, and cascade lifecycle.
+- Browser verification of sign-up, Client/Project create/rename/delete,
+  connection validation errors, empty states, and optimistic selector updates.
 - Persistent Vercel-inspired client/project navigation with route-level code
   splitting for overview, checks, connections, and settings.
 - Searchable shadcn client/project selectors, shared project scope, responsive
   sidebar collapse behavior, and synchronized light/dark preferences.
 - Self-hosted Poppins 400/500/600 Latin assets across all interface and telemetry
   text; moss remains a rare status/identity accent.
+- Header Client/Project creation and selection, Settings rename/delete, and
+  Connections create/edit/pause/rotate/delete UI using shadcn/ui primitives.
+- Required Convex deployment variable:
+  `PEEK_CREDENTIAL_ENCRYPTION_KEY` (base64-encoded 32-byte key). Optional during
+  rotation: `PEEK_CREDENTIAL_PREVIOUS_ENCRYPTION_KEY`.
 
 ## Remaining production decisions
 
 - Hosting URL and production `SITE_URL`.
 - Alert delivery channel and escalation rules.
-- Consultancy-wide shared workspace versus per-user workspaces.
-- Retention/compaction policy for `metricSnapshots`.
+- Consultancy-wide shared organization versus current per-authenticated-user
+  ownership.
+- Retention/compaction policy for `serviceMetricSnapshots`.
 - Whether to add Neon Consumption API metrics alongside database evidence.
+- Whether to replace account-wide Upstash Management API credentials with a
+  dedicated proxy/integration for stricter client isolation.
+- Removal of inert legacy demo tables after the new model has been accepted.

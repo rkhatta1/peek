@@ -196,7 +196,7 @@
 
 [data-page-transition='loading'] [data-page-transition-item] {
   opacity: 0;
-  filter: blur(4px);
+  filter: blur(24px);
   will-change: opacity, filter;
 }
 
@@ -225,7 +225,7 @@
 }
 
 ::view-transition-old(peek-page) {
-  animation: peek-page-out 140ms cubic-bezier(0.2, 0, 0, 1) both;
+  animation: peek-page-out 220ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 ::view-transition-new(peek-page) {
@@ -238,7 +238,7 @@
 }
 
 ::view-transition-old(.peek-transition-item) {
-  animation: peek-item-out 120ms cubic-bezier(0.2, 0, 0, 1) both;
+  animation: peek-item-out 190ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 ::view-transition-new(.peek-transition-item) {
@@ -293,14 +293,14 @@
 
   to {
     opacity: 0;
-    filter: blur(4px);
+    filter: blur(24px);
   }
 }
 
 @keyframes peek-page-in {
   from {
     opacity: 0;
-    filter: blur(4px);
+    filter: blur(24px);
   }
 
   to {
@@ -317,14 +317,14 @@
 
   to {
     opacity: 0;
-    filter: blur(4px);
+    filter: blur(24px);
   }
 }
 
 @keyframes peek-item-in {
   from {
     opacity: 0;
-    filter: blur(4px);
+    filter: blur(24px);
   }
 
   to {

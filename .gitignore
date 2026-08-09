@@ -13,4 +13,6 @@ __unconfig*
 todos.json
 .firecrawl/
 memory/
+.handoff/
 codex-clipboard-*.png
+.tmp-img
