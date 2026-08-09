@@ -4,10 +4,15 @@ import { createClient } from '@convex-dev/better-auth'
 import type { GenericCtx } from '@convex-dev/better-auth'
 import { convex } from '@convex-dev/better-auth/plugins'
 import { betterAuth } from 'better-auth/minimal'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
 
 import { components } from './_generated/api'
 import type { DataModel } from './_generated/dataModel'
 import authConfig from './auth.config'
+import {
+  ACCESS_GRANT_HEADER,
+  verifyAccessToken,
+} from './lib/accessGateCrypto'
 
 const siteUrl = process.env.SITE_URL ?? 'http://localhost:3000'
 
@@ -23,6 +28,21 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
       enabled: true,
       requireEmailVerification: false,
       minPasswordLength: 8,
+    },
+    hooks: {
+      before: createAuthMiddleware(async (hookCtx) => {
+        if (!requiresAccessGrant(hookCtx.path)) return
+        const token = hookCtx.headers?.get(ACCESS_GRANT_HEADER)
+        if (
+          !token ||
+          token.length > 200 ||
+          !(await verifyAccessToken(token, hookCtx.context.secret))
+        ) {
+          throw new APIError('FORBIDDEN', {
+            message: 'Access grant required',
+          })
+        }
+      }),
     },
     session: {
       expiresIn: 60 * 60 * 24 * 7,
@@ -45,6 +65,10 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
     },
     plugins: [convex({ authConfig })],
   })
+}
+
+function requiresAccessGrant(path: string) {
+  return path === '/sign-in/email' || path === '/sign-up/email'
 }
 
 export const { getAuthUser } = authComponent.clientApi()

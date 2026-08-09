@@ -1,6 +1,7 @@
 import { ConvexHttpClient } from 'convex/browser'
 
 import { api } from '../../convex/_generated/api'
+import { ACCESS_GRANT_HEADER } from '../../convex/lib/accessGateCrypto'
 
 const ACCESS_COOKIE = 'peek_access'
 const ACCESS_COOKIE_MAX_AGE = 12 * 60 * 60
@@ -46,6 +47,14 @@ export function requiresAccessGate(request: Request) {
     pathname === '/api/auth/sign-up' ||
     pathname.startsWith('/api/auth/sign-up/')
   )
+}
+
+export function forwardAccessGrant(request: Request, production: boolean) {
+  const token = readAccessToken(request, production)
+  if (!token) return null
+  const headers = new Headers(request.headers)
+  headers.set(ACCESS_GRANT_HEADER, token)
+  return new Request(request, { headers })
 }
 
 export function isSameOrigin(request: Request) {

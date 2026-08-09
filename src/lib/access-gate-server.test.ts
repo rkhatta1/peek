@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 
 import {
   accessCookie,
+  forwardAccessGrant,
   readAccessToken,
   requiresAccessGate,
 } from './access-gate-server'
@@ -37,5 +38,25 @@ describe('access gate server boundary', () => {
         }),
       ),
     ).toBe(false)
+  })
+
+  test('forwards the signed cookie as a private access grant', () => {
+    const request = new Request('http://localhost:3000/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { cookie: 'peek_access=signed-token' },
+      body: '{}',
+    })
+
+    expect(
+      forwardAccessGrant(request, false)?.headers.get('x-peek-access-grant'),
+    ).toBe('signed-token')
+    expect(
+      forwardAccessGrant(
+        new Request('http://localhost:3000/api/auth/sign-in/email', {
+          method: 'POST',
+        }),
+        false,
+      ),
+    ).toBeNull()
   })
 })

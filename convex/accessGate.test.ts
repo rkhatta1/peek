@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import { convexTest } from 'convex-test'
+import { register as registerBetterAuth } from '@convex-dev/better-auth/test'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import { api, internal } from './_generated/api'
@@ -12,6 +13,40 @@ const modules = import.meta.glob('./**/*.ts')
 afterEach(() => vi.unstubAllEnvs())
 
 describe('access gate', () => {
+  test('guards credential endpoints at the public Convex boundary', async () => {
+    const secret = 'test-secret-at-least-32-characters-long'
+    vi.stubEnv('BETTER_AUTH_SECRET', secret)
+    vi.stubEnv('SITE_URL', 'http://localhost:3000')
+    const t = convexTest(schema, modules)
+    registerBetterAuth(t)
+    const body = '{}'
+
+    const denied = await t.fetch('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body,
+    })
+    expect(denied.status).toBe(403)
+
+    const token = await createAccessToken(secret, Date.now() + 60_000)
+    const allowed = await t.fetch('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-peek-access-grant': token,
+      },
+      body,
+    })
+    expect(allowed.status).not.toBe(403)
+
+    const signOut = await t.fetch('/api/auth/sign-out', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    })
+    expect(signOut.status).not.toBe(403)
+  })
+
   test('seeds the managed development code once and issues a signed grant', async () => {
     vi.stubEnv('SITE_URL', 'http://localhost:3000')
     vi.stubEnv('BETTER_AUTH_SECRET', 'test-secret-at-least-32-characters-long')

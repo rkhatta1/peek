@@ -1,5 +1,7 @@
 const encoder = new TextEncoder()
 
+export const ACCESS_GRANT_HEADER = 'x-peek-access-grant'
+
 export async function hashAccessCode(code: string, secret: string) {
   return await sign(`access-code:${code.trim()}`, secret)
 }
