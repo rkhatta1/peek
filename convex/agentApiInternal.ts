@@ -142,10 +142,14 @@ export const recordEventForToken = internalMutation({
 
 async function statusPayload(
   ctx: Pick<QueryCtx | MutationCtx, 'db'>,
-  endpoint: { ownerId: string; activeCommitId?: Id<'agentCommits'> },
+  endpoint: {
+    ownerId: string
+    comment: string
+    activeCommitId?: Id<'agentCommits'>
+  },
   projectId: Id<'projects'>,
 ) {
-  if (!endpoint.activeCommitId) return emptyStatus()
+  if (!endpoint.activeCommitId) return emptyStatus(endpoint.comment)
   const commit = await ctx.db.get(endpoint.activeCommitId)
   const connection = await ctx.db
     .query('codeConnections')
@@ -192,9 +196,9 @@ async function statusPayload(
   }
 }
 
-function emptyStatus() {
+function emptyStatus(comment = '') {
   return {
-    comment: '',
+    comment,
     commitHash: null,
     commitTitle: null,
     eventStats: null,

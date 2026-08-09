@@ -96,6 +96,7 @@ export const setComment = mutation({
     if (endpoint) {
       if (endpoint.ownerId !== ownerId) throw new Error('Agent endpoint not found')
       await ctx.db.patch(endpoint._id, {
+        comment: '',
         activeCommitId: comment
           ? commit._id
           : endpoint.activeCommitId === commit._id

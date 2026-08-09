@@ -265,6 +265,24 @@ describe('Project agent endpoint', () => {
       eventStats: null,
     })
 
+    await t.run(async (ctx) => {
+      const endpoint = await ctx.db
+        .query('agentEndpoints')
+        .withIndex('by_project', (q) => q.eq('projectId', projectId))
+        .unique()
+      if (!endpoint) throw new Error('Missing endpoint')
+      await ctx.db.patch(endpoint._id, { comment: 'Legacy rollout guidance.' })
+    })
+    const legacyStatus = await t.fetch('/status', {
+      headers: { Authorization: `Bearer ${created.token}` },
+    })
+    expect(await legacyStatus.json()).toEqual({
+      comment: 'Legacy rollout guidance.',
+      commitHash: null,
+      commitTitle: null,
+      eventStats: null,
+    })
+
     const rotated = await owner.action(api.agentApiActions.rotateToken, {
       projectId,
     })
@@ -276,7 +294,7 @@ describe('Project agent endpoint', () => {
     })
     expect(staleStatus.status).toBe(401)
     expect(await currentStatus.json()).toEqual({
-      comment: '',
+      comment: 'Legacy rollout guidance.',
       commitHash: null,
       commitTitle: null,
       eventStats: null,

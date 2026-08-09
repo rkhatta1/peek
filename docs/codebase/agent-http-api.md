@@ -12,10 +12,12 @@ is displayed once when created or rotated, and is stored as a SHA-256 hash.
 Rotation invalidates the prior token without changing the active commit comment.
 Revocation and Project or Client deletion invalidate access immediately.
 
-With no active comment, status returns an empty `comment`, null commit fields,
-and null `eventStats`. Comments are created from the Agent page against a cached
-GitHub `main` commit. The first Check trigger at or after that commit supplies
-its event stats; without a later trigger, `eventStats` remains null.
+With no active commit, status temporarily returns any legacy Project comment
+with null commit fields and null `eventStats`. Selecting commit guidance clears
+that rollout fallback permanently. Comments are created from the Agent page
+against a cached GitHub `main` commit. The first Check trigger at or after that
+commit supplies its event stats; without a later trigger, `eventStats` remains
+null.
 
 ## Event body
 
