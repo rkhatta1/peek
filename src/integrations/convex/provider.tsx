@@ -1,5 +1,8 @@
 import { ConvexQueryClient } from '@convex-dev/react-query'
-import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react'
+import {
+  ConvexBetterAuthProvider,
+  type AuthClient,
+} from '@convex-dev/better-auth/react'
 
 import { authClient } from '../../lib/auth-client'
 
@@ -21,7 +24,8 @@ export default function AppConvexProvider({
   return (
     <ConvexBetterAuthProvider
       client={convexQueryClient.convexClient}
-      authClient={authClient}
+      // Upstream #420: Better Auth 1.6.22+ changed this public return type.
+      authClient={authClient as unknown as AuthClient}
       initialToken={initialToken}
     >
       {children}
