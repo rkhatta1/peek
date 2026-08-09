@@ -158,6 +158,7 @@ export default defineSchema({
     environment: v.literal('production'),
     status: lifecycleStatusValidator,
     lastSyncedHeadSha: v.optional(v.string()),
+    lastCommitSyncStartedAt: v.optional(v.number()),
     lastValidatedAt: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),

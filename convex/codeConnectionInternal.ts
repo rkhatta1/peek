@@ -10,6 +10,7 @@ import {
 } from './lib/validators'
 
 const ACTIVE = 'active' as const
+const COMMIT_SYNC_COOLDOWN_MS = 60_000
 
 const internalConnectionValidator = v.object({
   connectionId: v.id('codeConnections'),
@@ -73,6 +74,40 @@ export const listResolutionTargets = internalQuery({
         }
       }),
     )
+  },
+})
+
+export const claimCommitSync = internalMutation({
+  args: {
+    ownerId: v.string(),
+    projectId: v.id('projects'),
+    connectionId: v.id('codeConnections'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireActiveProjectForOwner(ctx, args.ownerId, args.projectId)
+    const connection = await ctx.db.get(args.connectionId)
+    if (
+      !connection ||
+      connection.ownerId !== args.ownerId ||
+      connection.projectId !== args.projectId ||
+      connection.provider !== 'github' ||
+      connection.status !== ACTIVE
+    ) {
+      throw new Error('GitHub connection not found')
+    }
+    const now = Date.now()
+    if (
+      connection.lastCommitSyncStartedAt !== undefined &&
+      now - connection.lastCommitSyncStartedAt < COMMIT_SYNC_COOLDOWN_MS
+    ) {
+      throw new Error('COMMIT_SYNC_COOLDOWN')
+    }
+    await ctx.db.patch(connection._id, {
+      lastCommitSyncStartedAt: now,
+      updatedAt: now,
+    })
+    return null
   },
 })
 

@@ -38,6 +38,11 @@ export const syncMain = action({
     )
     const target = targets.find((candidate) => candidate.provider === 'github')
     if (!target?.encryptedCredentials) throw new Error('GITHUB_NOT_CONNECTED')
+    await ctx.runMutation(internal.codeConnectionInternal.claimCommitSync, {
+      ownerId,
+      projectId: args.projectId,
+      connectionId: target.connectionId,
+    })
     const credentials = await decryptCodeConnectionCredentials(
       target.encryptedCredentials,
       ownerId,

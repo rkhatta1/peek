@@ -213,14 +213,21 @@ export async function fetchGitHubMainCommitsPage({
   )
   return commits.map((commit) => ({
     sha: requiredString(commit.sha, 'GITHUB_INVALID_RESPONSE'),
-    title: requiredString(commit.commit?.message, 'GITHUB_INVALID_RESPONSE').split(
-      '\n',
-      1,
-    )[0],
-    author:
+    title: boundedDisplay(
+      requiredString(commit.commit?.message, 'GITHUB_INVALID_RESPONSE').split(
+        '\n',
+        1,
+      )[0],
+      500,
+      'Untitled commit',
+    ),
+    author: boundedDisplay(
       optionalString(commit.author?.login) ??
-      optionalString(commit.commit?.committer?.name) ??
+        optionalString(commit.commit?.committer?.name) ??
+        'Unknown',
+      200,
       'Unknown',
+    ),
     committedAt: requiredDate(
       commit.commit?.committer?.date,
       'GITHUB_INVALID_RESPONSE',
@@ -361,6 +368,10 @@ function requiredString(value: unknown, code: string) {
 
 function optionalString(value: unknown) {
   return typeof value === 'string' && value ? value : null
+}
+
+function boundedDisplay(value: string, maxLength: number, fallback: string) {
+  return value.trim().slice(0, maxLength) || fallback
 }
 
 function requiredNumber(value: unknown, code: string) {

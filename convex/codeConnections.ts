@@ -24,6 +24,7 @@ export const listByProject = query({
         ownerId: _ownerId,
         status: _status,
         lastSyncedHeadSha: _lastSyncedHeadSha,
+        lastCommitSyncStartedAt: _lastCommitSyncStartedAt,
         ...connection
       }) => connection,
     )

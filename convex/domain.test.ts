@@ -222,6 +222,18 @@ describe('Project code connections', () => {
       }),
     ])
     expect(JSON.stringify(connections)).not.toContain('github-client-ciphertext')
+    await owner.mutation(internal.codeConnectionInternal.claimCommitSync, {
+      ownerId: 'peek|owner',
+      projectId,
+      connectionId,
+    })
+    await expect(
+      owner.mutation(internal.codeConnectionInternal.claimCommitSync, {
+        ownerId: 'peek|owner',
+        projectId,
+        connectionId,
+      }),
+    ).rejects.toThrow('COMMIT_SYNC_COOLDOWN')
     await expect(
       stranger.query(api.codeConnections.listByProject, { projectId }),
     ).rejects.toThrow('Project not found')

@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from 'vitest'
 
 import {
   fetchGitHubAttributionAt,
+  fetchGitHubMainCommitsPage,
   fetchVercelAttributionAt,
   isGitHubCommitAncestor,
 } from './codeAttribution'
@@ -9,6 +10,34 @@ import {
 const observedAt = Date.parse('2026-08-08T10:30:00.000Z')
 
 describe('code attribution providers', () => {
+  test('bounds provider-controlled commit display fields', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      Response.json([
+        {
+          sha: '0123456789abcdef0123456789abcdef01234567',
+          html_url:
+            'https://github.com/acme/app/commit/0123456789abcdef0123456789abcdef01234567',
+          commit: {
+            message: 'T'.repeat(1_000),
+            committer: {
+              date: '2026-08-08T10:00:00Z',
+              name: 'A'.repeat(400),
+            },
+          },
+        },
+      ]),
+    )
+
+    const [commit] = await fetchGitHubMainCommitsPage({
+      repository: 'acme/app',
+      token: 'github-token',
+      page: 1,
+      fetcher,
+    })
+    expect(commit.title).toHaveLength(500)
+    expect(commit.author).toHaveLength(200)
+  })
+
   test('detects whether the previously synced head remains on main', async () => {
     const ancestorFetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
       Response.json({ status: 'ahead' }),
