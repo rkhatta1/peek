@@ -132,7 +132,9 @@ export const listCollectionTargetsPage = internalQuery({
   handler: async (ctx, args) => {
     const page = await ctx.db
       .query('serviceConnections')
-      .withIndex('by_active_and_status', (q) => q.eq('active', true).eq('status', ACTIVE))
+      .withIndex('by_active_and_status_and_project', (q) =>
+        q.eq('active', true).eq('status', ACTIVE),
+      )
       .paginate(args.paginationOpts)
     const targets = await Promise.all(page.page.map((service) => collectionTarget(ctx, service)))
     return { ...page, page: targets.filter((target) => target !== null) }

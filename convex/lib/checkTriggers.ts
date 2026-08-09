@@ -5,6 +5,51 @@ import { incrementLedgerTotals } from './ledgerTotals'
 
 export type CheckTriggerSource = 'connection' | 'manual' | 'scheduled'
 
+export type ScheduledCheckAggregate<ProjectId = Id<'projects'>> = {
+  projectId: ProjectId
+  ownerId: string
+  triggeredAt: number
+  completedAt: number
+  serviceCount: number
+  operationalCount: number
+  attentionCount: number
+  unavailableCount: number
+}
+
+export function foldScheduledPage<ProjectId>(
+  pending: ScheduledCheckAggregate<ProjectId> | null,
+  page: ScheduledCheckAggregate<ProjectId>[],
+  isDone: boolean,
+) {
+  const completed: ScheduledCheckAggregate<ProjectId>[] = []
+  let current = pending
+  for (const aggregate of page) {
+    if (current && current.projectId === aggregate.projectId) {
+      if (current.ownerId !== aggregate.ownerId) {
+        throw new Error('Scheduled Check owner changed')
+      }
+      current = {
+        ...current,
+        triggeredAt: Math.min(current.triggeredAt, aggregate.triggeredAt),
+        completedAt: Math.max(current.completedAt, aggregate.completedAt),
+        serviceCount: current.serviceCount + aggregate.serviceCount,
+        operationalCount:
+          current.operationalCount + aggregate.operationalCount,
+        attentionCount: current.attentionCount + aggregate.attentionCount,
+        unavailableCount: current.unavailableCount + aggregate.unavailableCount,
+      }
+    } else {
+      if (current) completed.push(current)
+      current = aggregate
+    }
+  }
+  if (isDone && current) {
+    completed.push(current)
+    current = null
+  }
+  return { completed, pending: current }
+}
+
 export async function insertCheckTrigger(
   ctx: MutationCtx,
   args: {

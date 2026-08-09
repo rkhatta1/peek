@@ -79,7 +79,8 @@ Services. Each Project supports one active connection per code provider.
 
 - Manual refresh is scoped to the selected Project and at most 20 active
   Services.
-- The cron collector paginates active Services in batches of 25 and limits
+- The cron collector paginates active Services by Project in batches of 25,
+  carries the final Project aggregate across page boundaries, and limits
   provider calls to five concurrent requests.
 - Overview reads are bounded to 20 Services and 96 indexed snapshots per
   Service.

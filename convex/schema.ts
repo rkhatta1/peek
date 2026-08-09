@@ -67,7 +67,11 @@ export default defineSchema({
   })
     .index('by_project_and_status', ['projectId', 'status'])
     .index('by_client_and_status', ['clientId', 'status'])
-    .index('by_active_and_status', ['active', 'status'])
+    .index('by_active_and_status_and_project', [
+      'active',
+      'status',
+      'projectId',
+    ])
     .index('by_project_and_provider_and_normalizedName_and_status', [
       'projectId',
       'provider',
