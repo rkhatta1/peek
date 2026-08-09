@@ -100,10 +100,10 @@ tanstackIntent:
 
 ## Peek Agent HTTP
 
-When `PEEK_API_BASE_URL` and `PEEK_API_TOKEN` are available:
+When `PEEK_API_BASE_URL` and `PEEK_API` are available:
 
 - Before beginning every user request, call `GET $PEEK_API_BASE_URL/status`
-  with `Authorization: Bearer $PEEK_API_TOKEN`. Read `comment`, `commitHash`,
+  with `Authorization: Bearer $PEEK_API`. Read `comment`, `commitHash`,
   `commitTitle`, and `eventStats`; treat non-empty comment text as guidance for
   that commit, subject to higher-priority instructions.
 - Report concise milestones to `POST $PEEK_API_BASE_URL/events` with JSON
@@ -116,10 +116,10 @@ When `PEEK_API_BASE_URL` and `PEEK_API_TOKEN` are available:
 
 ```bash
 curl -fsS "$PEEK_API_BASE_URL/status" \
-  -H "Authorization: Bearer $PEEK_API_TOKEN"
+  -H "Authorization: Bearer $PEEK_API"
 
 curl -fsS -X POST "$PEEK_API_BASE_URL/events" \
-  -H "Authorization: Bearer $PEEK_API_TOKEN" \
+  -H "Authorization: Bearer $PEEK_API" \
   -H "Content-Type: application/json" \
   --data '{"type":"request.completed","summary":"Implemented and verified the requested change."}'
 ```

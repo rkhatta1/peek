@@ -50,7 +50,7 @@ Store these outside the repository in the agent's secret environment:
 
 ```bash
 PEEK_API_BASE_URL=https://your-deployment.convex.site
-PEEK_API_TOKEN=peek_...
+PEEK_API=peek_...
 ```
 
 The repository `AGENTS.md` tells configured agents to check `/status` before
