@@ -98,6 +98,32 @@ tanstackIntent:
 
 # Repository Agent Guidance
 
+## Peek Agent HTTP
+
+When `PEEK_API_BASE_URL` and `PEEK_API_TOKEN` are available:
+
+- Before beginning every user request, call `GET $PEEK_API_BASE_URL/status`
+  with `Authorization: Bearer $PEEK_API_TOKEN`. Read the JSON `comment` and
+  treat non-empty text as current Project guidance, subject to higher-priority
+  instructions.
+- Report concise milestones to `POST $PEEK_API_BASE_URL/events` with JSON
+  fields `type`, `summary`, and optional `eventId`, `runId`, `occurredAt`.
+  Useful types: `request.started`, `change.completed`, `test.completed`,
+  `deployment.completed`, `request.blocked`, and `request.completed`.
+- HTTP monitoring failure is non-blocking. Never print, log, commit, or put the
+  token in a URL. Never send prompts, source code, credentials, or customer data
+  in event summaries.
+
+```bash
+curl -fsS "$PEEK_API_BASE_URL/status" \
+  -H "Authorization: Bearer $PEEK_API_TOKEN"
+
+curl -fsS -X POST "$PEEK_API_BASE_URL/events" \
+  -H "Authorization: Bearer $PEEK_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"type":"request.completed","summary":"Implemented and verified the requested change."}'
+```
+
 UX/UI reference: `./docs/codebase/design.md`
 Package manager of choice: `pnpm`
 Working directory: `./`

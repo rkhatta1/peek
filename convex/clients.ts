@@ -82,7 +82,13 @@ export const remove = mutation({
     const now = Date.now()
     await ctx.db.patch(args.clientId, { status: 'deleted', updatedAt: now })
 
-    const [projects, services, codeConnections] = await Promise.all([
+    const [
+      projects,
+      services,
+      codeConnections,
+      agentTokens,
+      agentEndpoints,
+    ] = await Promise.all([
       ctx.db
         .query('projects')
         .withIndex('by_client_and_status', (q) =>
@@ -100,6 +106,14 @@ export const remove = mutation({
         .withIndex('by_client_and_status', (q) =>
           q.eq('clientId', args.clientId).eq('status', ACTIVE),
         )
+        .take(CASCADE_LIMIT),
+      ctx.db
+        .query('agentApiTokens')
+        .withIndex('by_client', (q) => q.eq('clientId', args.clientId))
+        .take(CASCADE_LIMIT),
+      ctx.db
+        .query('agentEndpoints')
+        .withIndex('by_client', (q) => q.eq('clientId', args.clientId))
         .take(CASCADE_LIMIT),
     ])
 
@@ -127,6 +141,12 @@ export const remove = mutation({
         .unique()
       if (credentials) await ctx.db.delete(credentials._id)
       await ctx.db.patch(connection._id, { status: 'deleted', updatedAt: now })
+    }
+    for (const token of agentTokens) {
+      if (token.ownerId === ownerId) await ctx.db.delete(token._id)
+    }
+    for (const endpoint of agentEndpoints) {
+      if (endpoint.ownerId === ownerId) await ctx.db.delete(endpoint._id)
     }
 
     await ctx.scheduler.runAfter(0, internal.cleanup.deletedClient, {

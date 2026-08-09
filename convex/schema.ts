@@ -136,6 +136,46 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('by_connection', ['connectionId']),
 
+  agentEndpoints: defineTable({
+    clientId: v.id('clients'),
+    projectId: v.id('projects'),
+    ownerId: v.string(),
+    comment: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_project', ['projectId'])
+    .index('by_client', ['clientId']),
+
+  agentApiTokens: defineTable({
+    endpointId: v.id('agentEndpoints'),
+    clientId: v.id('clients'),
+    projectId: v.id('projects'),
+    ownerId: v.string(),
+    tokenId: v.string(),
+    tokenHash: v.string(),
+    hint: v.string(),
+    createdAt: v.number(),
+  })
+    .index('by_project', ['projectId'])
+    .index('by_client', ['clientId'])
+    .index('by_tokenId', ['tokenId']),
+
+  agentEvents: defineTable({
+    clientId: v.id('clients'),
+    projectId: v.id('projects'),
+    ownerId: v.string(),
+    eventId: v.string(),
+    runId: v.optional(v.string()),
+    type: v.string(),
+    summary: v.string(),
+    occurredAt: v.number(),
+    receivedAt: v.number(),
+  })
+    .index('by_project_and_receivedAt', ['projectId', 'receivedAt'])
+    .index('by_project_and_eventId', ['projectId', 'eventId'])
+    .index('by_client', ['clientId']),
+
   // Legacy demo-only tables retained during the non-destructive domain migration.
   workspaces: defineTable({
     ownerId: v.string(),

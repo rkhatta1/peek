@@ -32,6 +32,32 @@ commit, pull request, and Vercel deployment visible at the snapshot's capture
 time. Attribution describes code state at observation time; it does not prove
 that the code caused the observed provider condition.
 
+## Agent endpoint
+
+An authenticated HTTP interface through which an AI agent reports its work to
+one Project and reads consultancy guidance for that Project. Each Project has
+one Agent endpoint, one active API token, and one current Status comment. Token
+rotation does not clear the Status comment.
+
+## Agent event
+
+A time-stamped statement reported by an AI agent through a Project's Agent
+endpoint. An Agent event records the agent's claimed activity or observation;
+it is not authoritative evidence of a commit, deployment, or provider state.
+GitHub, Vercel, and monitored Services remain authoritative for those facts.
+
+## Status comment
+
+The current consultancy instruction returned by a Project's authenticated
+`/status` endpoint as `{ "comment": "..." }`. Agents check it before beginning
+each user request. The comment persists until a Peek user changes or clears it.
+
+## Agent API token
+
+A revocable bearer credential granting access only to one Project's Agent
+endpoint. Peek displays its plaintext once when created or rotated, stores only
+its cryptographic hash, and never places it in checked-in agent instructions.
+
 ## Credential
 
 The provider secret material required to validate and access one Service or
@@ -46,14 +72,16 @@ belong transitively to the Service's Project and Client.
 
 ## Ownership
 
-Clients, Projects, Services, Code connections, Credentials, and Metric snapshots
-are isolated by the authenticated Peek identity. A user cannot read or mutate
-another user's monitoring resources.
+Clients, Projects, Services, Code connections, Credentials, Metric snapshots,
+Agent endpoints, Agent API tokens, and Agent events are isolated by the
+authenticated Peek identity. A user cannot read or mutate another user's
+monitoring resources.
 
 ## Lifecycle
 
 Deleting a Client removes it and all descendant Projects and Services from the
 active product immediately. Deleting a Project does the same for its Services
-and Code connections. Deleting a Service or Code connection removes its stored
-Credential immediately. Historical snapshots and remaining descendant records
-are then removed by bounded background cleanup.
+and Code connections. Deleting a Project or Client revokes descendant Agent API
+tokens immediately. Deleting a Service or Code connection removes its stored
+Credential immediately. Historical snapshots, Agent events, and remaining
+descendant records are then removed by bounded background cleanup.

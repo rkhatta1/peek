@@ -227,3 +227,165 @@ describe('Project code connections', () => {
     ).rejects.toThrow('Project not found')
   })
 })
+
+describe('Project agent endpoint', () => {
+  test('creates a write-only token and returns the current status comment', async () => {
+    const t = testBackend()
+    const owner = t.withIdentity({ tokenIdentifier: 'peek|owner' })
+    const stranger = t.withIdentity({ tokenIdentifier: 'peek|stranger' })
+    const clientId = await owner.mutation(api.clients.create, { name: 'Acme' })
+    const projectId = await owner.mutation(api.projects.create, {
+      clientId,
+      name: 'Atlas',
+    })
+
+    const created = await owner.action(api.agentApiActions.rotateToken, {
+      projectId,
+    })
+    const settings = await owner.query(api.agentApi.getSettings, { projectId })
+
+    expect(created.token).toMatch(/^peek_[a-f0-9]{24}_[a-f0-9]{64}$/)
+    expect(settings).toEqual({
+      comment: '',
+      token: {
+        createdAt: expect.any(Number),
+        hint: created.token.slice(-6),
+      },
+    })
+    expect(JSON.stringify(settings)).not.toContain(created.token)
+
+    await expect(
+      stranger.mutation(api.agentApi.updateComment, {
+        projectId,
+        comment: 'Ship it.',
+      }),
+    ).rejects.toThrow('Project not found')
+    await owner.mutation(api.agentApi.updateComment, {
+      projectId,
+      comment: 'Run the migration before deploying.',
+    })
+
+    const status = await t.fetch('/status', {
+      headers: { Authorization: `Bearer ${created.token}` },
+    })
+    expect(status.status).toBe(200)
+    expect(await status.json()).toEqual({
+      comment: 'Run the migration before deploying.',
+    })
+
+    const rotated = await owner.action(api.agentApiActions.rotateToken, {
+      projectId,
+    })
+    const staleStatus = await t.fetch('/status', {
+      headers: { Authorization: `Bearer ${created.token}` },
+    })
+    const currentStatus = await t.fetch('/status', {
+      headers: { Authorization: `Bearer ${rotated.token}` },
+    })
+    expect(staleStatus.status).toBe(401)
+    expect(await currentStatus.json()).toEqual({
+      comment: 'Run the migration before deploying.',
+    })
+  })
+
+  test('accepts idempotent agent events and returns the status comment', async () => {
+    const t = testBackend()
+    const owner = t.withIdentity({ tokenIdentifier: 'peek|owner' })
+    const clientId = await owner.mutation(api.clients.create, { name: 'Acme' })
+    const projectId = await owner.mutation(api.projects.create, {
+      clientId,
+      name: 'Atlas',
+    })
+    const { token } = await owner.action(api.agentApiActions.rotateToken, {
+      projectId,
+    })
+    await owner.mutation(api.agentApi.updateComment, {
+      projectId,
+      comment: 'Pause before deployment.',
+    })
+    const event = {
+      eventId: 'evt_checkout_tests',
+      runId: 'run_checkout',
+      type: 'test.completed',
+      summary: 'Checkout tests passed.',
+      occurredAt: 1_786_000_000_000,
+    }
+
+    const unauthorized = await t.fetch('/events', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(event),
+    })
+    expect(unauthorized.status).toBe(401)
+
+    const first = await t.fetch('/events', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(event),
+    })
+    const duplicate = await t.fetch('/events', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(event),
+    })
+
+    expect(first.status).toBe(202)
+    expect(await first.json()).toEqual({
+      accepted: true,
+      comment: 'Pause before deployment.',
+      duplicate: false,
+      eventId: event.eventId,
+    })
+    expect(await duplicate.json()).toEqual({
+      accepted: true,
+      comment: 'Pause before deployment.',
+      duplicate: true,
+      eventId: event.eventId,
+    })
+    expect(await owner.query(api.agentApi.listRecentEvents, { projectId })).toEqual([
+      expect.objectContaining(event),
+    ])
+  })
+
+  test('revokes agent access without clearing the comment', async () => {
+    const t = testBackend()
+    const owner = t.withIdentity({ tokenIdentifier: 'peek|owner' })
+    const clientId = await owner.mutation(api.clients.create, { name: 'Acme' })
+    const projectId = await owner.mutation(api.projects.create, {
+      clientId,
+      name: 'Atlas',
+    })
+    const { token } = await owner.action(api.agentApiActions.rotateToken, {
+      projectId,
+    })
+    await owner.mutation(api.agentApi.updateComment, {
+      projectId,
+      comment: 'Keep this instruction.',
+    })
+
+    await owner.mutation(api.agentApi.revokeToken, { projectId })
+    const revokedStatus = await t.fetch('/status', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    expect(revokedStatus.status).toBe(401)
+    expect(await owner.query(api.agentApi.getSettings, { projectId })).toEqual({
+      comment: 'Keep this instruction.',
+      token: null,
+    })
+
+    const rotated = await owner.action(api.agentApiActions.rotateToken, {
+      projectId,
+    })
+    await owner.mutation(api.projects.remove, { projectId })
+    const deletedProjectStatus = await t.fetch('/status', {
+      headers: { Authorization: `Bearer ${rotated.token}` },
+    })
+    expect(deletedProjectStatus.status).toBe(401)
+  })
+})

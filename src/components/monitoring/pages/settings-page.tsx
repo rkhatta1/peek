@@ -1,7 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useAction, useMutation, useQuery } from 'convex/react'
 
+import { api } from '../../../../convex/_generated/api'
+import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '#/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -36,9 +46,30 @@ export function SettingsPage() {
     null,
   )
   const [error, setError] = useState('')
+  const agentSettings = useQuery(
+    api.agentApi.getSettings,
+    selectedProject ? { projectId: selectedProject._id } : 'skip',
+  )
+  const rotateAgentToken = useAction(api.agentApiActions.rotateToken)
+  const updateAgentComment = useMutation(api.agentApi.updateComment)
+  const revokeAgentToken = useMutation(api.agentApi.revokeToken)
+  const [agentComment, setAgentComment] = useState('')
+  const [agentSaving, setAgentSaving] = useState<
+    'comment' | 'token' | 'revoke' | null
+  >(null)
+  const [agentError, setAgentError] = useState('')
+  const [newAgentToken, setNewAgentToken] = useState('')
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => setClientName(selectedClient?.name ?? ''), [selectedClient])
   useEffect(() => setProjectName(selectedProject?.name ?? ''), [selectedProject])
+  useEffect(() => {
+    setAgentComment(agentSettings?.comment ?? '')
+  }, [agentSettings?.comment, selectedProject?._id])
+  useEffect(() => {
+    setNewAgentToken('')
+    setCopied(false)
+  }, [selectedProject?._id])
 
   async function saveClient(event: FormEvent) {
     event.preventDefault()
@@ -83,6 +114,63 @@ export function SettingsPage() {
       setError(errorMessage(cause))
     } finally {
       setDeleting(false)
+    }
+  }
+
+  async function saveAgentComment(event: FormEvent) {
+    event.preventDefault()
+    if (!selectedProject) return
+    setAgentSaving('comment')
+    setAgentError('')
+    try {
+      await updateAgentComment({
+        projectId: selectedProject._id,
+        comment: agentComment,
+      })
+    } catch (cause) {
+      setAgentError(errorMessage(cause))
+    } finally {
+      setAgentSaving(null)
+    }
+  }
+
+  async function createOrRotateAgentToken() {
+    if (!selectedProject) return
+    setAgentSaving('token')
+    setAgentError('')
+    setCopied(false)
+    try {
+      const result = await rotateAgentToken({ projectId: selectedProject._id })
+      setNewAgentToken(result.token)
+    } catch (cause) {
+      setAgentError(errorMessage(cause))
+    } finally {
+      setAgentSaving(null)
+    }
+  }
+
+  async function revokeCurrentAgentToken() {
+    if (!selectedProject) return
+    setAgentSaving('revoke')
+    setAgentError('')
+    try {
+      await revokeAgentToken({ projectId: selectedProject._id })
+      setNewAgentToken('')
+      setCopied(false)
+    } catch (cause) {
+      setAgentError(errorMessage(cause))
+    } finally {
+      setAgentSaving(null)
+    }
+  }
+
+  async function copyAgentToken() {
+    if (!newAgentToken) return
+    try {
+      await navigator.clipboard.writeText(newAgentToken)
+      setCopied(true)
+    } catch {
+      setAgentError('Could not copy the token')
     }
   }
 
@@ -175,8 +263,113 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
+        <Card {...pageTransitionItem('settings-agent-api', 2)} className="shadow-none">
+          <CardHeader>
+            <CardTitle className="text-sm">Agent API</CardTitle>
+            <CardDescription>
+              Let an AI agent report Project activity and read your current
+              instruction over authenticated HTTP.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-5">
+            {selectedProject ? (
+              <>
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm font-medium">Endpoints</p>
+                  <code className="break-all rounded-md bg-muted px-3 py-2 text-xs">
+                    GET {agentApiBaseUrl}/status
+                  </code>
+                  <code className="break-all rounded-md bg-muted px-3 py-2 text-xs">
+                    POST {agentApiBaseUrl}/events
+                  </code>
+                </div>
+
+                <form className="flex items-end gap-3" onSubmit={saveAgentComment}>
+                  <div className="grid flex-1 gap-2">
+                    <Label htmlFor="agent-status-comment">Status comment</Label>
+                    <Input
+                      id="agent-status-comment"
+                      maxLength={2_000}
+                      onChange={(event) => setAgentComment(event.target.value)}
+                      placeholder="e.g. Pause before deployment."
+                      value={agentComment}
+                    />
+                  </div>
+                  <Button
+                    disabled={
+                      agentSaving === 'comment' ||
+                      agentSettings === undefined ||
+                      agentComment.trim() === agentSettings.comment
+                    }
+                    type="submit"
+                    variant="outline"
+                  >
+                    {agentSaving === 'comment' ? 'Saving…' : 'Save comment'}
+                  </Button>
+                </form>
+
+                {newAgentToken ? (
+                  <Alert>
+                    <AlertTitle>Copy this token now</AlertTitle>
+                    <AlertDescription>
+                      <p>Peek stores only its hash. It will not be shown again.</p>
+                      <div className="flex w-full gap-2">
+                        <Input
+                          aria-label="New Agent API token"
+                          className="min-w-0 flex-1 font-mono"
+                          readOnly
+                          value={newAgentToken}
+                        />
+                        <Button onClick={copyAgentToken} type="button" variant="outline">
+                          {copied ? 'Copied' : 'Copy'}
+                        </Button>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+
+                <p className="text-xs text-muted-foreground">
+                  {agentSettings?.token
+                    ? `Active token ending ${agentSettings.token.hint} · created ${formatDate(agentSettings.token.createdAt)}`
+                    : 'No active Agent API token.'}
+                </p>
+                {agentError ? (
+                  <p className="text-xs text-destructive">{agentError}</p>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">No project selected.</p>
+            )}
+          </CardContent>
+          {selectedProject ? (
+            <CardFooter className="gap-2">
+              <Button
+                disabled={agentSaving !== null}
+                onClick={createOrRotateAgentToken}
+                type="button"
+              >
+                {agentSaving === 'token'
+                  ? 'Generating…'
+                  : agentSettings?.token
+                    ? 'Rotate token'
+                    : 'Create token'}
+              </Button>
+              {agentSettings?.token ? (
+                <Button
+                  disabled={agentSaving !== null}
+                  onClick={revokeCurrentAgentToken}
+                  type="button"
+                  variant="destructive"
+                >
+                  {agentSaving === 'revoke' ? 'Revoking…' : 'Revoke token'}
+                </Button>
+              ) : null}
+            </CardFooter>
+          ) : null}
+        </Card>
+
         <Card
-          {...pageTransitionItem('settings-preferences', 2)}
+          {...pageTransitionItem('settings-preferences', 3)}
           className="shadow-none"
         >
           <CardHeader>
@@ -225,8 +418,8 @@ export function SettingsPage() {
             </DialogTitle>
             <DialogDescription>
               {deleteTarget === 'client'
-                ? 'All projects, connected services, credentials, and metric history for this client will be deleted.'
-                : 'Connected services, credentials, and metric history for this project will be deleted.'}
+                ? 'All projects, connected services, credentials, Agent API access, events, and metric history for this client will be deleted.'
+                : 'Connected services, credentials, Agent API access, events, and metric history for this project will be deleted.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -247,3 +440,18 @@ export function SettingsPage() {
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Could not save changes'
 }
+
+function formatDate(timestamp: number) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(timestamp)
+}
+
+function convexSiteUrl() {
+  const explicit = import.meta.env.VITE_CONVEX_SITE_URL?.replace(/\/$/, '')
+  if (explicit) return explicit
+  return import.meta.env.VITE_CONVEX_URL?.replace(/\.convex\.cloud\/?$/, '.convex.site') ?? ''
+}
+
+const agentApiBaseUrl = convexSiteUrl()

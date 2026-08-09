@@ -118,3 +118,16 @@ export const codeConnectionValidator = v.object({
   createdAt: v.number(),
   updatedAt: v.number(),
 })
+
+export const agentEventValidator = v.object({
+  _id: v.id('agentEvents'),
+  _creationTime: v.number(),
+  clientId: v.id('clients'),
+  projectId: v.id('projects'),
+  eventId: v.string(),
+  runId: v.optional(v.string()),
+  type: v.string(),
+  summary: v.string(),
+  occurredAt: v.number(),
+  receivedAt: v.number(),
+})

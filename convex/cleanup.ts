@@ -27,7 +27,7 @@ export const deletedProject = internalMutation({
   args: { ownerId: v.string(), projectId: v.id('projects') },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const [services, codeConnections] = await Promise.all([
+    const [services, codeConnections, events, token, endpoint] = await Promise.all([
       ctx.db
         .query('serviceConnections')
         .withIndex('by_project_and_status', (q) =>
@@ -40,6 +40,20 @@ export const deletedProject = internalMutation({
           q.eq('projectId', args.projectId).eq('status', 'deleted'),
         )
         .take(BATCH_SIZE),
+      ctx.db
+        .query('agentEvents')
+        .withIndex('by_project_and_receivedAt', (q) =>
+          q.eq('projectId', args.projectId),
+        )
+        .take(BATCH_SIZE),
+      ctx.db
+        .query('agentApiTokens')
+        .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
+        .unique(),
+      ctx.db
+        .query('agentEndpoints')
+        .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
+        .unique(),
     ])
     for (const service of services) {
       if (service.ownerId !== args.ownerId) continue
@@ -76,10 +90,16 @@ export const deletedProject = internalMutation({
     for (const snapshot of snapshots) {
       if (snapshot.ownerId === args.ownerId) await ctx.db.delete(snapshot._id)
     }
+    for (const event of events) {
+      if (event.ownerId === args.ownerId) await ctx.db.delete(event._id)
+    }
+    if (token?.ownerId === args.ownerId) await ctx.db.delete(token._id)
+    if (endpoint?.ownerId === args.ownerId) await ctx.db.delete(endpoint._id)
     if (
       services.length === BATCH_SIZE ||
       codeConnections.length === BATCH_SIZE ||
-      snapshots.length === BATCH_SIZE
+      snapshots.length === BATCH_SIZE ||
+      events.length === BATCH_SIZE
     ) {
       await ctx.scheduler.runAfter(0, internal.cleanup.deletedProject, args)
     }
@@ -97,6 +117,9 @@ export const deletedClient = internalMutation({
       activeCodeConnections,
       deletedCodeConnections,
       snapshots,
+      agentEvents,
+      agentTokens,
+      agentEndpoints,
     ] = await Promise.all([
       ctx.db
         .query('projects')
@@ -124,6 +147,18 @@ export const deletedClient = internalMutation({
         .take(BATCH_SIZE),
       ctx.db
         .query('serviceMetricSnapshots')
+        .withIndex('by_client', (q) => q.eq('clientId', args.clientId))
+        .take(BATCH_SIZE),
+      ctx.db
+        .query('agentEvents')
+        .withIndex('by_client', (q) => q.eq('clientId', args.clientId))
+        .take(BATCH_SIZE),
+      ctx.db
+        .query('agentApiTokens')
+        .withIndex('by_client', (q) => q.eq('clientId', args.clientId))
+        .take(BATCH_SIZE),
+      ctx.db
+        .query('agentEndpoints')
         .withIndex('by_client', (q) => q.eq('clientId', args.clientId))
         .take(BATCH_SIZE),
     ])
@@ -162,12 +197,24 @@ export const deletedClient = internalMutation({
     for (const snapshot of snapshots) {
       if (snapshot.ownerId === args.ownerId) await ctx.db.delete(snapshot._id)
     }
+    for (const event of agentEvents) {
+      if (event.ownerId === args.ownerId) await ctx.db.delete(event._id)
+    }
+    for (const token of agentTokens) {
+      if (token.ownerId === args.ownerId) await ctx.db.delete(token._id)
+    }
+    for (const endpoint of agentEndpoints) {
+      if (endpoint.ownerId === args.ownerId) await ctx.db.delete(endpoint._id)
+    }
     if (
       projects.length === BATCH_SIZE ||
       services.length === BATCH_SIZE ||
       activeCodeConnections.length === BATCH_SIZE ||
       deletedCodeConnections.length === BATCH_SIZE ||
-      snapshots.length === BATCH_SIZE
+      snapshots.length === BATCH_SIZE ||
+      agentEvents.length === BATCH_SIZE ||
+      agentTokens.length === BATCH_SIZE ||
+      agentEndpoints.length === BATCH_SIZE
     ) {
       await ctx.scheduler.runAfter(0, internal.cleanup.deletedClient, args)
     }

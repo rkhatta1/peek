@@ -90,7 +90,7 @@ export const remove = mutation({
     await requireActiveProjectForOwner(ctx, ownerId, args.projectId)
     const now = Date.now()
     await ctx.db.patch(args.projectId, { status: 'deleted', updatedAt: now })
-    const [services, codeConnections] = await Promise.all([
+    const [services, codeConnections, agentToken, agentEndpoint] = await Promise.all([
       ctx.db
         .query('serviceConnections')
         .withIndex('by_project_and_status', (q) =>
@@ -103,6 +103,14 @@ export const remove = mutation({
           q.eq('projectId', args.projectId).eq('status', ACTIVE),
         )
         .take(CASCADE_LIMIT),
+      ctx.db
+        .query('agentApiTokens')
+        .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
+        .unique(),
+      ctx.db
+        .query('agentEndpoints')
+        .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
+        .unique(),
     ])
     for (const service of services) {
       await ctx.db.patch(service._id, { active: false, status: 'deleted', updatedAt: now })
@@ -122,6 +130,8 @@ export const remove = mutation({
       if (credentials) await ctx.db.delete(credentials._id)
       await ctx.db.patch(connection._id, { status: 'deleted', updatedAt: now })
     }
+    if (agentToken?.ownerId === ownerId) await ctx.db.delete(agentToken._id)
+    if (agentEndpoint?.ownerId === ownerId) await ctx.db.delete(agentEndpoint._id)
     await ctx.scheduler.runAfter(0, internal.cleanup.deletedProject, {
       ownerId,
       projectId: args.projectId,

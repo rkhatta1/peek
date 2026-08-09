@@ -8,6 +8,10 @@
  * @module
  */
 
+import type * as agentApi from "../agentApi.js";
+import type * as agentApiActions from "../agentApiActions.js";
+import type * as agentApiHttp from "../agentApiHttp.js";
+import type * as agentApiInternal from "../agentApiInternal.js";
 import type * as auth from "../auth.js";
 import type * as cleanup from "../cleanup.js";
 import type * as clients from "../clients.js";
@@ -17,6 +21,7 @@ import type * as codeConnections from "../codeConnections.js";
 import type * as collectors from "../collectors.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
+import type * as lib_agentApi from "../lib/agentApi.js";
 import type * as lib_codeAttribution from "../lib/codeAttribution.js";
 import type * as lib_domain from "../lib/domain.js";
 import type * as lib_monitoring from "../lib/monitoring.js";
@@ -36,6 +41,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  agentApi: typeof agentApi;
+  agentApiActions: typeof agentApiActions;
+  agentApiHttp: typeof agentApiHttp;
+  agentApiInternal: typeof agentApiInternal;
   auth: typeof auth;
   cleanup: typeof cleanup;
   clients: typeof clients;
@@ -45,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   collectors: typeof collectors;
   crons: typeof crons;
   http: typeof http;
+  "lib/agentApi": typeof lib_agentApi;
   "lib/codeAttribution": typeof lib_codeAttribution;
   "lib/domain": typeof lib_domain;
   "lib/monitoring": typeof lib_monitoring;
