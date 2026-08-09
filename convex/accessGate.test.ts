@@ -47,6 +47,31 @@ describe('access gate', () => {
     expect(signOut.status).not.toBe(403)
   })
 
+  test('does not rate limit credential requests outside production', async () => {
+    const secret = 'test-secret-at-least-32-characters-long'
+    vi.stubEnv('BETTER_AUTH_SECRET', secret)
+    vi.stubEnv('SITE_URL', 'http://localhost:3000')
+    vi.stubEnv('NODE_ENV', 'development')
+    const t = convexTest(schema, modules)
+    registerBetterAuth(t)
+    const token = await createAccessToken(secret, Date.now() + 60_000)
+    const statuses: number[] = []
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const response = await t.fetch('/api/auth/sign-up/email', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-peek-access-grant': token,
+        },
+        body: '{}',
+      })
+      statuses.push(response.status)
+    }
+
+    expect(statuses).toEqual([400, 400, 400, 400])
+  })
+
   test('seeds the managed development code once and issues a signed grant', async () => {
     vi.stubEnv('SITE_URL', 'http://localhost:3000')
     vi.stubEnv('BETTER_AUTH_SECRET', 'test-secret-at-least-32-characters-long')

@@ -54,7 +54,7 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
       },
     },
     rateLimit: {
-      enabled: true,
+      enabled: process.env.NODE_ENV === 'production',
       storage: 'database',
       window: 60,
       max: 100,
