@@ -25,11 +25,16 @@ on the Convex deployment:
 ```bash
 pnpm convex env set SITE_URL http://localhost:3000
 pnpm convex env set BETTER_AUTH_SECRET <generated-secret>
+pnpm convex env set PEEK_ACCESS_CODE <managed-development-code>
 openssl rand -base64 32 | pnpm convex env set PEEK_CREDENTIAL_ENCRYPTION_KEY
+pnpm convex run accessGate:seedDevelopmentAccessCode --push
 ```
 
 Keep the secret out of committed files. The TanStack app proxies `/api/auth/*`
-to the Convex HTTP endpoint and passes the auth token into Convex SSR.
+to the Convex HTTP endpoint and passes the auth token into Convex SSR. The seed
+command stores only a keyed hash, runs only for loopback development sites, and
+does not overwrite an existing code. Sign-in and sign-up remain server-gated;
+the browser receives a signed, HTTP-only 12-hour access cookie after approval.
 
 ## Provider collection
 

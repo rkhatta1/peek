@@ -10,7 +10,6 @@ import {
   Settings,
 } from 'lucide-react'
 
-import { authClient } from '#/lib/auth-client'
 import { Button } from '#/components/ui/button'
 import {
   DropdownMenu,
@@ -49,17 +48,14 @@ const navigation = [
 ] as const
 
 export function AppSidebar({
+  onSignOut,
   user,
 }: {
+  onSignOut: () => Promise<void>
   user: { name: string; email: string }
 }) {
   const location = useLocation()
   const { isMobile, setOpenMobile, state, toggleSidebar } = useSidebar()
-
-  async function signOut() {
-    await authClient.signOut()
-    window.location.reload()
-  }
 
   return (
     <Sidebar collapsible="icon" variant="inset">
@@ -159,7 +155,7 @@ export function AppSidebar({
                   </p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => void signOut()}>
+                <DropdownMenuItem onClick={() => void onSignOut()}>
                   <LogOut aria-hidden="true" />
                   Sign out
                 </DropdownMenuItem>

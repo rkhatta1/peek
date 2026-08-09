@@ -15,6 +15,7 @@ import { Route as AppAgentRouteImport } from './routes/_app.agent'
 import { Route as AppChecksRouteImport } from './routes/_app.checks'
 import { Route as AppConnectionsRouteImport } from './routes/_app.connections'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
+import { Route as ApiAccessRouteImport } from './routes/api/access'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const AppRoute = AppRouteImport.update({
@@ -46,6 +47,11 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiAccessRoute = ApiAccessRouteImport.update({
+  id: '/api/access',
+  path: '/api/access',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/checks': typeof AppChecksRoute
   '/connections': typeof AppConnectionsRoute
   '/settings': typeof AppSettingsRoute
+  '/api/access': typeof ApiAccessRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
@@ -65,6 +72,7 @@ export interface FileRoutesByTo {
   '/checks': typeof AppChecksRoute
   '/connections': typeof AppConnectionsRoute
   '/settings': typeof AppSettingsRoute
+  '/api/access': typeof ApiAccessRoute
   '/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -75,15 +83,29 @@ export interface FileRoutesById {
   '/_app/checks': typeof AppChecksRoute
   '/_app/connections': typeof AppConnectionsRoute
   '/_app/settings': typeof AppSettingsRoute
+  '/api/access': typeof ApiAccessRoute
   '/_app/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/agent' | '/checks' | '/connections' | '/settings' | '/api/auth/$'
+    | '/'
+    | '/agent'
+    | '/checks'
+    | '/connections'
+    | '/settings'
+    | '/api/access'
+    | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/agent' | '/checks' | '/connections' | '/settings' | '/' | '/api/auth/$'
+  to:
+    | '/agent'
+    | '/checks'
+    | '/connections'
+    | '/settings'
+    | '/api/access'
+    | '/'
+    | '/api/auth/$'
   id:
     | '__root__'
     | '/_app'
@@ -91,12 +113,14 @@ export interface FileRouteTypes {
     | '/_app/checks'
     | '/_app/connections'
     | '/_app/settings'
+    | '/api/access'
     | '/_app/'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
+  ApiAccessRoute: typeof ApiAccessRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -144,6 +168,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/access': {
+      id: '/api/access'
+      path: '/api/access'
+      fullPath: '/api/access'
+      preLoaderRoute: typeof ApiAccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -174,6 +205,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  ApiAccessRoute: ApiAccessRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

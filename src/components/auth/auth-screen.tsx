@@ -23,7 +23,13 @@ function errorMessage(error: unknown) {
   return 'Something went wrong. Please try again.'
 }
 
-export function AuthScreen() {
+export function AuthScreen({
+  onAuthenticated,
+  onBack,
+}: {
+  onAuthenticated: () => Promise<void>
+  onBack: () => Promise<void>
+}) {
   const [mode, setMode] = useState<AuthMode>('sign-in')
   const [showPassword, setShowPassword] = useState(false)
   const [pending, setPending] = useState(false)
@@ -46,7 +52,7 @@ export function AuthScreen() {
           : await authClient.signIn.email({ email, password })
 
       if (result.error) throw result.error
-      window.location.reload()
+      await onAuthenticated()
     } catch (caught) {
       setError(errorMessage(caught))
       setPending(false)
@@ -186,6 +192,14 @@ export function AuthScreen() {
                 {mode === 'sign-in' ? 'Create an account' : 'Sign in'}
               </Button>
             </p>
+            <Button
+              type="button"
+              variant="link"
+              className="mt-2 h-auto w-full p-0 text-xs text-muted-foreground"
+              onClick={() => void onBack()}
+            >
+              Back to access code
+            </Button>
           </CardContent>
         </Card>
       </section>

@@ -27,14 +27,16 @@ const routeLabels: Record<string, string> = {
 }
 
 export function AppShell({
+  onSignOut,
   user,
 }: {
+  onSignOut: () => Promise<void>
   user: { name: string; email: string }
 }) {
   return (
     <MonitoringProvider>
       <SidebarProvider className="h-svh min-h-0 overflow-hidden">
-        <AppSidebar user={user} />
+        <AppSidebar onSignOut={onSignOut} user={user} />
         <AppFrame />
       </SidebarProvider>
     </MonitoringProvider>

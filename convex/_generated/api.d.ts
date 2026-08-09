@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as accessGate from "../accessGate.js";
 import type * as agentApi from "../agentApi.js";
 import type * as agentApiActions from "../agentApiActions.js";
 import type * as agentApiHttp from "../agentApiHttp.js";
@@ -26,6 +27,7 @@ import type * as collectors from "../collectors.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as ledgerTotals from "../ledgerTotals.js";
+import type * as lib_accessGateCrypto from "../lib/accessGateCrypto.js";
 import type * as lib_agentApi from "../lib/agentApi.js";
 import type * as lib_checkTriggers from "../lib/checkTriggers.js";
 import type * as lib_codeAttribution from "../lib/codeAttribution.js";
@@ -48,6 +50,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  accessGate: typeof accessGate;
   agentApi: typeof agentApi;
   agentApiActions: typeof agentApiActions;
   agentApiHttp: typeof agentApiHttp;
@@ -66,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   http: typeof http;
   ledgerTotals: typeof ledgerTotals;
+  "lib/accessGateCrypto": typeof lib_accessGateCrypto;
   "lib/agentApi": typeof lib_agentApi;
   "lib/checkTriggers": typeof lib_checkTriggers;
   "lib/codeAttribution": typeof lib_codeAttribution;

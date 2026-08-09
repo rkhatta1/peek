@@ -9,26 +9,32 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import type { ConvexQueryClient } from '@convex-dev/react-query'
 import { createServerFn } from '@tanstack/react-start'
+import { getRequest } from '@tanstack/react-start/server'
 
 import ConvexProvider from '../integrations/convex/provider'
 import { getToken } from '../lib/auth-server'
+import { hasAccessGate } from '../lib/access-gate-server'
 import { Button } from '../components/ui/button'
 
 import appCss from '../styles.css?url'
 
 const getAuth = createServerFn({ method: 'GET' }).handler(async () => {
-  return await getToken()
+  const token = await getToken()
+  return {
+    token,
+    hasAccess: Boolean(token) || (await hasAccessGate(getRequest())),
+  }
 })
 
 export const Route = createRootRouteWithContext<{
   convexQueryClient: ConvexQueryClient
 }>()({
   beforeLoad: async ({ context }) => {
-    const token = await getAuth()
+    const { token, hasAccess } = await getAuth()
     if (token) {
       context.convexQueryClient.serverHttpClient?.setAuth(token)
     }
-    return { token, isAuthenticated: Boolean(token) }
+    return { token, hasAccess, isAuthenticated: Boolean(token) }
   },
   head: () => ({
     meta: [

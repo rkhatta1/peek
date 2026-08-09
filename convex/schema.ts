@@ -17,6 +17,14 @@ const rawStatus = v.union(
 )
 
 export default defineSchema({
+  accessGateSettings: defineTable({
+    key: v.string(),
+    codeHash: v.string(),
+    attemptWindowStartedAt: v.optional(v.number()),
+    attemptCount: v.optional(v.number()),
+    updatedAt: v.number(),
+  }).index('by_key', ['key']),
+
   clients: defineTable({
     ownerId: v.string(),
     name: v.string(),
