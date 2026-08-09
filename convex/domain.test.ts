@@ -338,6 +338,28 @@ describe('Project agent endpoint', () => {
       body: JSON.stringify(event),
     })
     expect(unauthorized.status).toBe(401)
+    const forged = await t.fetch('/events', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer peek_${'a'.repeat(24)}_${'b'.repeat(64)}`,
+        'content-type': 'application/json',
+      },
+      body: '{',
+    })
+    expect(forged.status).toBe(401)
+
+    const oversized = await t.fetch('/events', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'test.completed',
+        summary: 'x'.repeat(17_000),
+      }),
+    })
+    expect(oversized.status).toBe(413)
 
     const first = await t.fetch('/events', {
       method: 'POST',
@@ -375,6 +397,26 @@ describe('Project agent endpoint', () => {
       eventStats: null,
       eventId: event.eventId,
     })
+    await t.run(async (ctx) => {
+      const apiToken = await ctx.db
+        .query('agentApiTokens')
+        .withIndex('by_project', (q) => q.eq('projectId', projectId))
+        .unique()
+      if (!apiToken) throw new Error('Missing API token')
+      await ctx.db.patch(apiToken._id, {
+        eventWindowStartedAt: Date.now(),
+        eventWindowCount: 60,
+      })
+    })
+    const limited = await t.fetch('/events', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ ...event, eventId: 'evt_rate_limited' }),
+    })
+    expect(limited.status).toBe(429)
     expect(await owner.query(api.agentApi.listRecentEvents, { projectId })).toEqual([
       expect.objectContaining(event),
     ])

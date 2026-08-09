@@ -2,6 +2,9 @@ import { internal } from './_generated/api'
 import { httpAction } from './_generated/server'
 import { hashAgentToken, parseAgentToken } from './lib/agentApi'
 
+const MAX_EVENT_BODY_BYTES = 16 * 1_024
+const BODY_TOO_LARGE = Symbol('BODY_TOO_LARGE')
+
 export const status = httpAction(async (ctx, request) => {
   const rawToken = bearerToken(request)
   const parsed = parseAgentToken(rawToken)
@@ -18,17 +21,34 @@ export const events = httpAction(async (ctx, request) => {
   const rawToken = bearerToken(request)
   const parsed = parseAgentToken(rawToken)
   if (!parsed) return json({ error: 'unauthorized' }, 401)
+  const tokenHash = await hashAgentToken(rawToken)
+  const authenticated = await ctx.runQuery(
+    internal.agentApiInternal.authenticateToken,
+    { tokenId: parsed.tokenId, tokenHash },
+  )
+  if (!authenticated) return json({ error: 'unauthorized' }, 401)
 
-  const event = await readEvent(request)
+  let event: Awaited<ReturnType<typeof readEvent>>
+  try {
+    event = await readEvent(request)
+  } catch (error) {
+    if (error === BODY_TOO_LARGE) {
+      return json({ error: 'payload_too_large' }, 413)
+    }
+    throw error
+  }
   if (!event) return json({ error: 'invalid_request' }, 400)
   const result = await ctx.runMutation(
     internal.agentApiInternal.recordEventForToken,
     {
       ...event,
       tokenId: parsed.tokenId,
-      tokenHash: await hashAgentToken(rawToken),
+      tokenHash,
     },
   )
+  if (result && 'rateLimited' in result) {
+    return json({ error: 'rate_limited' }, 429, { 'retry-after': '60' })
+  }
   return result ? json(result, 202) : json({ error: 'unauthorized' }, 401)
 })
 
@@ -40,7 +60,7 @@ function bearerToken(request: Request) {
 }
 
 async function readEvent(request: Request) {
-  const body: unknown = await request.json().catch(() => null)
+  const body = await readJsonBody(request)
   if (!body || typeof body !== 'object' || Array.isArray(body)) return null
   const event = body as Record<string, unknown>
   const type = normalizedString(event.type, 80)
@@ -68,18 +88,51 @@ async function readEvent(request: Request) {
     : { eventId, type, summary, occurredAt }
 }
 
+async function readJsonBody(request: Request): Promise<unknown> {
+  const declaredLength = Number(request.headers.get('content-length'))
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_EVENT_BODY_BYTES) {
+    throw BODY_TOO_LARGE
+  }
+  if (!request.body) return null
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > MAX_EVENT_BODY_BYTES) {
+      await reader.cancel()
+      throw BODY_TOO_LARGE
+    }
+    chunks.push(value)
+  }
+  const bytes = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(bytes)) as unknown
+  } catch {
+    return null
+  }
+}
+
 function normalizedString(value: unknown, maxLength: number) {
   if (typeof value !== 'string') return null
   const normalized = value.trim()
   return normalized && normalized.length <= maxLength ? normalized : null
 }
 
-function json(body: unknown, status: number) {
+function json(body: unknown, status: number, headers?: HeadersInit) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       'cache-control': 'no-store',
       'content-type': 'application/json; charset=utf-8',
+      ...headers,
     },
   })
 }

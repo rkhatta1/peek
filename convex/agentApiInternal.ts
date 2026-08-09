@@ -25,6 +25,9 @@ const statusPayloadValidator = v.object({
   eventStats: v.union(v.null(), eventStatsValidator),
 })
 
+const EVENT_WINDOW_MS = 60_000
+const EVENT_WINDOW_LIMIT = 60
+
 export const rotateToken = internalMutation({
   args: {
     ownerId: v.string(),
@@ -90,6 +93,12 @@ export const statusForToken = internalQuery({
   },
 })
 
+export const authenticateToken = internalQuery({
+  args: { tokenId: v.string(), tokenHash: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => Boolean(await authenticatedEndpoint(ctx, args)),
+})
+
 const recordedEventValidator = v.object({
   accepted: v.literal(true),
   duplicate: v.boolean(),
@@ -107,11 +116,26 @@ export const recordEventForToken = internalMutation({
     summary: v.string(),
     occurredAt: v.number(),
   },
-  returns: v.union(v.null(), recordedEventValidator),
+  returns: v.union(
+    v.null(),
+    v.object({ rateLimited: v.literal(true) }),
+    recordedEventValidator,
+  ),
   handler: async (ctx, args) => {
     const authenticated = await authenticatedEndpoint(ctx, args)
     if (!authenticated) return null
     const { endpoint, project, token } = authenticated
+    const now = Date.now()
+    const inCurrentWindow =
+      token.eventWindowStartedAt !== undefined &&
+      now - token.eventWindowStartedAt < EVENT_WINDOW_MS
+    if (inCurrentWindow && (token.eventWindowCount ?? 0) >= EVENT_WINDOW_LIMIT) {
+      return { rateLimited: true as const }
+    }
+    await ctx.db.patch(token._id, {
+      eventWindowStartedAt: inCurrentWindow ? token.eventWindowStartedAt : now,
+      eventWindowCount: inCurrentWindow ? (token.eventWindowCount ?? 0) + 1 : 1,
+    })
     const duplicate = await ctx.db
       .query('agentEvents')
       .withIndex('by_project_and_eventId', (q) =>
@@ -128,7 +152,7 @@ export const recordEventForToken = internalMutation({
         type: args.type,
         summary: args.summary,
         occurredAt: args.occurredAt,
-        receivedAt: Date.now(),
+        receivedAt: now,
       })
     }
     return {

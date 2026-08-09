@@ -21,6 +21,10 @@ null.
 
 ## Event body
 
+Event requests are authenticated before parsing, capped at 16 KiB, and limited
+to 60 requests per token per minute. Limit responses use `429` with
+`Retry-After: 60`.
+
 ```json
 {
   "eventId": "optional-idempotency-key",

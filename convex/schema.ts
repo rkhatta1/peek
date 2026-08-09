@@ -199,6 +199,8 @@ export default defineSchema({
     tokenId: v.string(),
     tokenHash: v.string(),
     hint: v.string(),
+    eventWindowStartedAt: v.optional(v.number()),
+    eventWindowCount: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index('by_project', ['projectId'])
