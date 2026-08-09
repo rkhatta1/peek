@@ -1,6 +1,7 @@
 import { Link, useLocation } from '@tanstack/react-router'
 import {
   Activity,
+  Bot,
   ChevronsUpDown,
   Database,
   Gauge,
@@ -42,6 +43,7 @@ import { PeekMark } from './peek-mark'
 const navigation = [
   { label: 'Overview', href: '/', icon: Gauge },
   { label: 'Checks', href: '/checks', icon: Activity },
+  { label: 'Agent', href: '/agent', icon: Bot },
   { label: 'Connections', href: '/connections', icon: Database },
   { label: 'Settings', href: '/settings', icon: Settings },
 ] as const

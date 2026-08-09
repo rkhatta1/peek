@@ -1,5 +1,6 @@
 import { v } from 'convex/values'
 
+import { internal } from './_generated/api'
 import { mutation, query } from './_generated/server'
 import { requireActiveProjectForOwner, requireOwner } from './lib/domain'
 import { codeConnectionValidator } from './lib/validators'
@@ -48,6 +49,10 @@ export const remove = mutation({
     await ctx.db.patch(connection._id, {
       status: 'deleted',
       updatedAt: Date.now(),
+    })
+    await ctx.scheduler.runAfter(0, internal.cleanup.deletedCodeConnection, {
+      connectionId: connection._id,
+      ownerId,
     })
     return null
   },

@@ -56,6 +56,9 @@ Services. Each Project supports one active connection per code provider.
   drawers request `GET /repos/{owner}/{repo}/commits` with `sha=main`,
   `until=<observed time>`, and `per_page=1`, then request up to three pull
   requests associated with that commit.
+- The Agent page incrementally syncs `main` commits in GitHub pages of 100,
+  stops when it reaches a cached SHA, and stores only commit metadata. Its
+  Convex ledger uses indexed cursor pagination.
 - Vercel stores the validated project ID and name. Event drawers request ready
   production deployments from `main` created before the observation, then
   select the newest deployment whose ready timestamp is not after the event.
@@ -80,6 +83,9 @@ Services. Each Project supports one active connection per code provider.
   provider calls to five concurrent requests.
 - Overview reads are bounded to 20 Services and 96 indexed snapshots per
   Service.
+- Each Project collection writes one immutable Check trigger with aggregate
+  outcomes. Checks and Agent ledgers use Convex cursor pagination; denormalized
+  Project counters provide exact table totals without scanning either ledger.
 - Client and Project lists are indexed, owner-scoped, and capped at 100.
 - Deletes disappear optimistically in the UI, then perform bounded recursive
   cleanup in scheduled Convex mutations.

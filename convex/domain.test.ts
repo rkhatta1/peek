@@ -229,7 +229,7 @@ describe('Project code connections', () => {
 })
 
 describe('Project agent endpoint', () => {
-  test('creates a write-only token and returns the current status comment', async () => {
+  test('creates a write-only token and returns empty commit-aware status', async () => {
     const t = testBackend()
     const owner = t.withIdentity({ tokenIdentifier: 'peek|owner' })
     const stranger = t.withIdentity({ tokenIdentifier: 'peek|stranger' })
@@ -246,31 +246,23 @@ describe('Project agent endpoint', () => {
 
     expect(created.token).toMatch(/^peek_[a-f0-9]{24}_[a-f0-9]{64}$/)
     expect(settings).toEqual({
-      comment: '',
       token: {
         createdAt: expect.any(Number),
         hint: created.token.slice(-6),
       },
     })
     expect(JSON.stringify(settings)).not.toContain(created.token)
-
-    await expect(
-      stranger.mutation(api.agentApi.updateComment, {
-        projectId,
-        comment: 'Ship it.',
-      }),
-    ).rejects.toThrow('Project not found')
-    await owner.mutation(api.agentApi.updateComment, {
-      projectId,
-      comment: 'Run the migration before deploying.',
-    })
+    expect(await stranger.query(api.clients.list)).toEqual([])
 
     const status = await t.fetch('/status', {
       headers: { Authorization: `Bearer ${created.token}` },
     })
     expect(status.status).toBe(200)
     expect(await status.json()).toEqual({
-      comment: 'Run the migration before deploying.',
+      comment: '',
+      commitHash: null,
+      commitTitle: null,
+      eventStats: null,
     })
 
     const rotated = await owner.action(api.agentApiActions.rotateToken, {
@@ -284,11 +276,14 @@ describe('Project agent endpoint', () => {
     })
     expect(staleStatus.status).toBe(401)
     expect(await currentStatus.json()).toEqual({
-      comment: 'Run the migration before deploying.',
+      comment: '',
+      commitHash: null,
+      commitTitle: null,
+      eventStats: null,
     })
   })
 
-  test('accepts idempotent agent events and returns the status comment', async () => {
+  test('accepts idempotent agent events and returns commit-aware status', async () => {
     const t = testBackend()
     const owner = t.withIdentity({ tokenIdentifier: 'peek|owner' })
     const clientId = await owner.mutation(api.clients.create, { name: 'Acme' })
@@ -298,10 +293,6 @@ describe('Project agent endpoint', () => {
     })
     const { token } = await owner.action(api.agentApiActions.rotateToken, {
       projectId,
-    })
-    await owner.mutation(api.agentApi.updateComment, {
-      projectId,
-      comment: 'Pause before deployment.',
     })
     const event = {
       eventId: 'evt_checkout_tests',
@@ -338,14 +329,20 @@ describe('Project agent endpoint', () => {
     expect(first.status).toBe(202)
     expect(await first.json()).toEqual({
       accepted: true,
-      comment: 'Pause before deployment.',
+      comment: '',
+      commitHash: null,
+      commitTitle: null,
       duplicate: false,
+      eventStats: null,
       eventId: event.eventId,
     })
     expect(await duplicate.json()).toEqual({
       accepted: true,
-      comment: 'Pause before deployment.',
+      comment: '',
+      commitHash: null,
+      commitTitle: null,
       duplicate: true,
+      eventStats: null,
       eventId: event.eventId,
     })
     expect(await owner.query(api.agentApi.listRecentEvents, { projectId })).toEqual([
@@ -353,7 +350,7 @@ describe('Project agent endpoint', () => {
     ])
   })
 
-  test('revokes agent access without clearing the comment', async () => {
+  test('revokes agent access', async () => {
     const t = testBackend()
     const owner = t.withIdentity({ tokenIdentifier: 'peek|owner' })
     const clientId = await owner.mutation(api.clients.create, { name: 'Acme' })
@@ -364,18 +361,12 @@ describe('Project agent endpoint', () => {
     const { token } = await owner.action(api.agentApiActions.rotateToken, {
       projectId,
     })
-    await owner.mutation(api.agentApi.updateComment, {
-      projectId,
-      comment: 'Keep this instruction.',
-    })
-
     await owner.mutation(api.agentApi.revokeToken, { projectId })
     const revokedStatus = await t.fetch('/status', {
       headers: { Authorization: `Bearer ${token}` },
     })
     expect(revokedStatus.status).toBe(401)
     expect(await owner.query(api.agentApi.getSettings, { projectId })).toEqual({
-      comment: 'Keep this instruction.',
       token: null,
     })
 
@@ -387,5 +378,162 @@ describe('Project agent endpoint', () => {
       headers: { Authorization: `Bearer ${rotated.token}` },
     })
     expect(deletedProjectStatus.status).toBe(401)
+  })
+})
+
+describe('Check and Agent ledgers', () => {
+  test('paginates immutable check triggers and returns stored totals', async () => {
+    const t = testBackend()
+    const owner = t.withIdentity({ tokenIdentifier: 'peek|owner' })
+    const clientId = await owner.mutation(api.clients.create, { name: 'Acme' })
+    const projectId = await owner.mutation(api.projects.create, {
+      clientId,
+      name: 'Atlas',
+    })
+
+    await owner.mutation(internal.checkTriggers.record, {
+      ownerId: 'peek|owner',
+      projectId,
+      source: 'manual',
+      triggeredAt: 200,
+      completedAt: 220,
+      serviceCount: 2,
+      operationalCount: 1,
+      attentionCount: 1,
+      unavailableCount: 0,
+    })
+    await owner.mutation(internal.checkTriggers.record, {
+      ownerId: 'peek|owner',
+      projectId,
+      source: 'scheduled',
+      triggeredAt: 300,
+      completedAt: 330,
+      serviceCount: 2,
+      operationalCount: 2,
+      attentionCount: 0,
+      unavailableCount: 0,
+    })
+
+    const first = await owner.query(api.checkTriggers.list, {
+      projectId,
+      attentionOnly: false,
+      paginationOpts: { cursor: null, numItems: 1 },
+    })
+    expect(first.page).toHaveLength(1)
+    expect(first.page[0]).toMatchObject({ triggeredAt: 300, status: 'operational' })
+    expect(first.isDone).toBe(false)
+
+    const attention = await owner.query(api.checkTriggers.list, {
+      projectId,
+      attentionOnly: true,
+      paginationOpts: { cursor: null, numItems: 10 },
+    })
+    expect(attention.page).toEqual([
+      expect.objectContaining({ triggeredAt: 200, status: 'attention' }),
+    ])
+    expect(await owner.query(api.ledgerTotals.get, { projectId })).toEqual({
+      agentCommits: 0,
+      checkAttentionTriggers: 1,
+      checkTriggers: 2,
+    })
+  })
+
+  test('attaches guidance to a main commit and returns its next trigger stats', async () => {
+    const t = testBackend()
+    const owner = t.withIdentity({ tokenIdentifier: 'peek|owner' })
+    const clientId = await owner.mutation(api.clients.create, { name: 'Acme' })
+    const projectId = await owner.mutation(api.projects.create, {
+      clientId,
+      name: 'Atlas',
+    })
+    const connectionId = await owner.mutation(
+      internal.codeConnectionInternal.commitValidatedConnection,
+      {
+        ownerId: 'peek|owner',
+        projectId,
+        provider: 'github',
+        externalId: '123',
+        externalSlug: 'acme/atlas',
+        name: 'acme/atlas',
+        encryptedCredentials: {
+          algorithm: 'AES-GCM',
+          binding: 'binding',
+          ciphertext: 'ciphertext',
+          iv: 'iv',
+          keyId: 'key-v1',
+        },
+      },
+    )
+    await owner.mutation(internal.checkTriggers.record, {
+      ownerId: 'peek|owner',
+      projectId,
+      source: 'scheduled',
+      triggeredAt: 100,
+      completedAt: 110,
+      serviceCount: 1,
+      operationalCount: 1,
+      attentionCount: 0,
+      unavailableCount: 0,
+    })
+    await owner.mutation(internal.checkTriggers.record, {
+      ownerId: 'peek|owner',
+      projectId,
+      source: 'scheduled',
+      triggeredAt: 300,
+      completedAt: 320,
+      serviceCount: 2,
+      operationalCount: 1,
+      attentionCount: 1,
+      unavailableCount: 0,
+    })
+    await owner.mutation(internal.agentCommitInternal.upsertPage, {
+      ownerId: 'peek|owner',
+      projectId,
+      connectionId,
+      commits: [
+        {
+          sha: '0123456789abcdef0123456789abcdef01234567',
+          title: 'Add guarded rollout',
+          author: 'Octocat',
+          committedAt: 200,
+          url: 'https://github.com/acme/atlas/commit/0123456789abcdef0123456789abcdef01234567',
+        },
+      ],
+    })
+
+    const commits = await owner.query(api.agentCommits.list, {
+      projectId,
+      paginationOpts: { cursor: null, numItems: 10 },
+    })
+    expect(commits.page).toHaveLength(1)
+    await owner.mutation(api.agentCommits.setComment, {
+      commitId: commits.page[0]._id,
+      comment: 'Verify the rollout guard before continuing.',
+    })
+    const { token } = await owner.action(api.agentApiActions.rotateToken, {
+      projectId,
+    })
+
+    const status = await t.fetch('/status', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    expect(status.status).toBe(200)
+    expect(await status.json()).toEqual({
+      comment: 'Verify the rollout guard before continuing.',
+      commitHash: '0123456789abcdef0123456789abcdef01234567',
+      commitTitle: 'Add guarded rollout',
+      eventStats: {
+        attention: 1,
+        completedAt: 320,
+        operational: 1,
+        services: 2,
+        status: 'attention',
+        triggeredAt: 300,
+        unavailable: 0,
+      },
+    })
+    expect(await owner.query(api.ledgerTotals.get, { projectId })).toMatchObject({
+      agentCommits: 1,
+    })
   })
 })

@@ -1,11 +1,29 @@
 import { v } from 'convex/values'
 
+import type { Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import { internalMutation, internalQuery } from './_generated/server'
 import {
   activeProjectForOwner,
   requireActiveProjectForOwner,
 } from './lib/domain'
+
+const eventStatsValidator = v.object({
+  status: v.union(v.literal('operational'), v.literal('attention')),
+  triggeredAt: v.number(),
+  completedAt: v.number(),
+  services: v.number(),
+  operational: v.number(),
+  attention: v.number(),
+  unavailable: v.number(),
+})
+
+const statusPayloadValidator = v.object({
+  comment: v.string(),
+  commitHash: v.union(v.null(), v.string()),
+  commitTitle: v.union(v.null(), v.string()),
+  eventStats: v.union(v.null(), eventStatsValidator),
+})
 
 export const rotateToken = internalMutation({
   args: {
@@ -63,18 +81,20 @@ export const rotateToken = internalMutation({
 
 export const statusForToken = internalQuery({
   args: { tokenId: v.string(), tokenHash: v.string() },
-  returns: v.union(v.null(), v.object({ comment: v.string() })),
+  returns: v.union(v.null(), statusPayloadValidator),
   handler: async (ctx, args) => {
     const authenticated = await authenticatedEndpoint(ctx, args)
-    return authenticated ? { comment: authenticated.endpoint.comment } : null
+    return authenticated
+      ? await statusPayload(ctx, authenticated.endpoint, authenticated.project._id)
+      : null
   },
 })
 
 const recordedEventValidator = v.object({
   accepted: v.literal(true),
-  comment: v.string(),
   duplicate: v.boolean(),
   eventId: v.string(),
+  ...statusPayloadValidator.fields,
 })
 
 export const recordEventForToken = internalMutation({
@@ -113,12 +133,61 @@ export const recordEventForToken = internalMutation({
     }
     return {
       accepted: true as const,
-      comment: endpoint.comment,
       duplicate: Boolean(duplicate),
       eventId: args.eventId,
+      ...(await statusPayload(ctx, endpoint, project._id)),
     }
   },
 })
+
+async function statusPayload(
+  ctx: Pick<QueryCtx | MutationCtx, 'db'>,
+  endpoint: { ownerId: string; activeCommitId?: Id<'agentCommits'> },
+  projectId: Id<'projects'>,
+) {
+  if (!endpoint.activeCommitId) return emptyStatus()
+  const commit = await ctx.db.get(endpoint.activeCommitId)
+  if (
+    !commit ||
+    commit.ownerId !== endpoint.ownerId ||
+    commit.projectId !== projectId ||
+    !commit.comment
+  ) {
+    return emptyStatus()
+  }
+  const trigger = await ctx.db
+    .query('checkTriggers')
+    .withIndex('by_project_and_triggeredAt', (q) =>
+      q.eq('projectId', projectId).gte('triggeredAt', commit.committedAt),
+    )
+    .order('asc')
+    .first()
+  return {
+    comment: commit.comment,
+    commitHash: commit.sha,
+    commitTitle: commit.title,
+    eventStats: trigger
+      ? {
+          status: trigger.status,
+          triggeredAt: trigger.triggeredAt,
+          completedAt: trigger.completedAt,
+          services: trigger.serviceCount,
+          operational: trigger.operationalCount,
+          attention: trigger.attentionCount,
+          unavailable: trigger.unavailableCount,
+        }
+      : null,
+  }
+}
+
+function emptyStatus() {
+  return {
+    comment: '',
+    commitHash: null,
+    commitTitle: null,
+    eventStats: null,
+  }
+}
 
 async function authenticatedEndpoint(
   ctx: Pick<QueryCtx | MutationCtx, 'db'>,

@@ -105,6 +105,43 @@ export default defineSchema({
     .index('by_client', ['clientId'])
     .index('by_project', ['projectId']),
 
+  checkTriggers: defineTable({
+    clientId: v.id('clients'),
+    projectId: v.id('projects'),
+    ownerId: v.string(),
+    source: v.union(
+      v.literal('connection'),
+      v.literal('manual'),
+      v.literal('scheduled'),
+    ),
+    status: v.union(v.literal('operational'), v.literal('attention')),
+    triggeredAt: v.number(),
+    completedAt: v.number(),
+    serviceCount: v.number(),
+    operationalCount: v.number(),
+    attentionCount: v.number(),
+    unavailableCount: v.number(),
+  })
+    .index('by_project_and_triggeredAt', ['projectId', 'triggeredAt'])
+    .index('by_project_and_status_and_triggeredAt', [
+      'projectId',
+      'status',
+      'triggeredAt',
+    ])
+    .index('by_client', ['clientId']),
+
+  ledgerTotals: defineTable({
+    clientId: v.id('clients'),
+    projectId: v.id('projects'),
+    ownerId: v.string(),
+    checkTriggers: v.number(),
+    checkAttentionTriggers: v.number(),
+    agentCommits: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_project', ['projectId'])
+    .index('by_client', ['clientId']),
+
   codeConnections: defineTable({
     clientId: v.id('clients'),
     projectId: v.id('projects'),
@@ -141,6 +178,7 @@ export default defineSchema({
     projectId: v.id('projects'),
     ownerId: v.string(),
     comment: v.string(),
+    activeCommitId: v.optional(v.id('agentCommits')),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -160,6 +198,24 @@ export default defineSchema({
     .index('by_project', ['projectId'])
     .index('by_client', ['clientId'])
     .index('by_tokenId', ['tokenId']),
+
+  agentCommits: defineTable({
+    clientId: v.id('clients'),
+    projectId: v.id('projects'),
+    ownerId: v.string(),
+    connectionId: v.id('codeConnections'),
+    sha: v.string(),
+    title: v.string(),
+    author: v.string(),
+    committedAt: v.number(),
+    url: v.string(),
+    comment: v.optional(v.string()),
+    commentUpdatedAt: v.optional(v.number()),
+    syncedAt: v.number(),
+  })
+    .index('by_project_and_committedAt', ['projectId', 'committedAt'])
+    .index('by_connection_and_sha', ['connectionId', 'sha'])
+    .index('by_client', ['clientId']),
 
   agentEvents: defineTable({
     clientId: v.id('clients'),

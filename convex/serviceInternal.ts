@@ -9,6 +9,8 @@ import {
   normalizeName,
   requireActiveProjectForOwner,
 } from './lib/domain'
+import { insertCheckTrigger } from './lib/checkTriggers'
+import { evaluateSnapshot } from './lib/monitoring'
 import {
   encryptedCredentialsValidator,
   providerSnapshotValidator,
@@ -235,6 +237,23 @@ export const commitConnectedService = internalMutation({
       serviceId,
       ownerId: args.ownerId,
       ...args.snapshot,
+    })
+    const evaluation = evaluateSnapshot(args.snapshot, {
+      now: args.snapshot.capturedAt,
+    })
+    const unavailable = args.snapshot.status === 'unavailable'
+    await insertCheckTrigger(ctx, {
+      ownerId: args.ownerId,
+      projectId: project._id,
+      source: 'connection',
+      triggeredAt: args.snapshot.capturedAt,
+      completedAt: Math.max(args.snapshot.capturedAt, Date.now()),
+      serviceCount: 1,
+      operationalCount:
+        !unavailable && evaluation.status === 'operational' ? 1 : 0,
+      attentionCount:
+        !unavailable && evaluation.status !== 'operational' ? 1 : 0,
+      unavailableCount: unavailable ? 1 : 0,
     })
     return serviceId
   },

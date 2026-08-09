@@ -10,4 +10,4 @@ Business meaning changes start in the glossary. Implementation documents follow.
 - [`codebase/provider-connections.md`](./codebase/provider-connections.md) —
   provider access, encrypted credentials, collection, and operational setup.
 - [`codebase/agent-http-api.md`](./codebase/agent-http-api.md) — project Agent
-  API tokens, status guidance, event ingestion, and agent setup.
+  API tokens, commit-scoped status guidance, event ingestion, and agent setup.

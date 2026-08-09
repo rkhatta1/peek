@@ -32,12 +32,39 @@ commit, pull request, and Vercel deployment visible at the snapshot's capture
 time. Attribution describes code state at observation time; it does not prove
 that the code caused the observed provider condition.
 
+## Check trigger
+
+An immutable Project-level ledger entry created when Peek collects connected
+Service metrics. A Check trigger records when collection started and finished,
+its source, and aggregate Service outcomes. The Checks page shows this ledger;
+new triggers never replace earlier entries.
+
+## Main commit
+
+A commit reachable from the connected GitHub repository's `main` branch and
+cached by Peek for the Agent ledger. GitHub remains authoritative for commit
+identity and history.
+
+## Commit event attribution
+
+The next Check trigger at or after a Main commit closes that commit's monitoring
+interval. Equivalently, commits after one Check trigger and at or before the
+next Check trigger are attributed to the next trigger. A commit remains pending
+when no later trigger exists. This is a time-based association, not proof that
+the commit caused the observed outcomes.
+
+## Commit comment
+
+Consultancy guidance attached to one Main commit. Posting a Commit comment
+makes that commit the Project's active Agent status; clearing it clears the
+active status without deleting comments on other commits.
+
 ## Agent endpoint
 
 An authenticated HTTP interface through which an AI agent reports its work to
 one Project and reads consultancy guidance for that Project. Each Project has
-one Agent endpoint, one active API token, and one current Status comment. Token
-rotation does not clear the Status comment.
+one Agent endpoint, one active API token, and at most one active commented Main
+commit. Token rotation does not clear the active Commit comment.
 
 ## Agent event
 
@@ -48,9 +75,10 @@ GitHub, Vercel, and monitored Services remain authoritative for those facts.
 
 ## Status comment
 
-The current consultancy instruction returned by a Project's authenticated
-`/status` endpoint as `{ "comment": "..." }`. Agents check it before beginning
-each user request. The comment persists until a Peek user changes or clears it.
+The active Commit comment returned by a Project's authenticated `/status`
+endpoint with its commit hash, commit title, and attributed Check trigger stats.
+Agents check it before beginning each user request. With no active Commit
+comment, the endpoint returns empty commit context and no event stats.
 
 ## Agent API token
 
@@ -73,9 +101,9 @@ belong transitively to the Service's Project and Client.
 ## Ownership
 
 Clients, Projects, Services, Code connections, Credentials, Metric snapshots,
-Agent endpoints, Agent API tokens, and Agent events are isolated by the
-authenticated Peek identity. A user cannot read or mutate another user's
-monitoring resources.
+Check triggers, Main commits, Commit comments, Agent endpoints, Agent API
+tokens, and Agent events are isolated by the authenticated Peek identity. A
+user cannot read or mutate another user's monitoring resources.
 
 ## Lifecycle
 
@@ -83,5 +111,6 @@ Deleting a Client removes it and all descendant Projects and Services from the
 active product immediately. Deleting a Project does the same for its Services
 and Code connections. Deleting a Project or Client revokes descendant Agent API
 tokens immediately. Deleting a Service or Code connection removes its stored
-Credential immediately. Historical snapshots, Agent events, and remaining
-descendant records are then removed by bounded background cleanup.
+Credential immediately. Historical snapshots, Check triggers, cached Main
+commits, Agent events, and remaining descendant records are then removed by
+bounded background cleanup.

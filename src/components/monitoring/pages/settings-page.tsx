@@ -51,21 +51,14 @@ export function SettingsPage() {
     selectedProject ? { projectId: selectedProject._id } : 'skip',
   )
   const rotateAgentToken = useAction(api.agentApiActions.rotateToken)
-  const updateAgentComment = useMutation(api.agentApi.updateComment)
   const revokeAgentToken = useMutation(api.agentApi.revokeToken)
-  const [agentComment, setAgentComment] = useState('')
-  const [agentSaving, setAgentSaving] = useState<
-    'comment' | 'token' | 'revoke' | null
-  >(null)
+  const [agentSaving, setAgentSaving] = useState<'token' | 'revoke' | null>(null)
   const [agentError, setAgentError] = useState('')
   const [newAgentToken, setNewAgentToken] = useState('')
   const [copied, setCopied] = useState(false)
 
   useEffect(() => setClientName(selectedClient?.name ?? ''), [selectedClient])
   useEffect(() => setProjectName(selectedProject?.name ?? ''), [selectedProject])
-  useEffect(() => {
-    setAgentComment(agentSettings?.comment ?? '')
-  }, [agentSettings?.comment, selectedProject?._id])
   useEffect(() => {
     setNewAgentToken('')
     setCopied(false)
@@ -114,23 +107,6 @@ export function SettingsPage() {
       setError(errorMessage(cause))
     } finally {
       setDeleting(false)
-    }
-  }
-
-  async function saveAgentComment(event: FormEvent) {
-    event.preventDefault()
-    if (!selectedProject) return
-    setAgentSaving('comment')
-    setAgentError('')
-    try {
-      await updateAgentComment({
-        projectId: selectedProject._id,
-        comment: agentComment,
-      })
-    } catch (cause) {
-      setAgentError(errorMessage(cause))
-    } finally {
-      setAgentSaving(null)
     }
   }
 
@@ -267,8 +243,8 @@ export function SettingsPage() {
           <CardHeader>
             <CardTitle className="text-sm">Agent API</CardTitle>
             <CardDescription>
-              Let an AI agent report Project activity and read your current
-              instruction over authenticated HTTP.
+              Let an AI agent report Project activity and read commit-scoped
+              guidance over authenticated HTTP.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
@@ -283,30 +259,6 @@ export function SettingsPage() {
                     POST {agentApiBaseUrl}/events
                   </code>
                 </div>
-
-                <form className="flex items-end gap-3" onSubmit={saveAgentComment}>
-                  <div className="grid flex-1 gap-2">
-                    <Label htmlFor="agent-status-comment">Status comment</Label>
-                    <Input
-                      id="agent-status-comment"
-                      maxLength={2_000}
-                      onChange={(event) => setAgentComment(event.target.value)}
-                      placeholder="e.g. Pause before deployment."
-                      value={agentComment}
-                    />
-                  </div>
-                  <Button
-                    disabled={
-                      agentSaving === 'comment' ||
-                      agentSettings === undefined ||
-                      agentComment.trim() === agentSettings.comment
-                    }
-                    type="submit"
-                    variant="outline"
-                  >
-                    {agentSaving === 'comment' ? 'Saving…' : 'Save comment'}
-                  </Button>
-                </form>
 
                 {newAgentToken ? (
                   <Alert>

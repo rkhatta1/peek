@@ -2,14 +2,20 @@
 
 Peek exposes two Convex HTTP actions at the deployment's `.convex.site` origin:
 
-- `GET /status` returns `{ "comment": "..." }`.
-- `POST /events` accepts a concise Agent event and returns the current comment
-  alongside its acceptance result.
+- `GET /status` returns the active commit comment, full commit hash, commit
+  title, and the next attributed Check trigger's aggregate stats.
+- `POST /events` accepts a concise Agent event and returns the same commit-aware
+  status alongside its acceptance result.
 
 Both require `Authorization: Bearer <token>`. A token belongs to one Project,
 is displayed once when created or rotated, and is stored as a SHA-256 hash.
-Rotation invalidates the prior token without changing the Project's comment.
+Rotation invalidates the prior token without changing the active commit comment.
 Revocation and Project or Client deletion invalidate access immediately.
+
+With no active comment, status returns an empty `comment`, null commit fields,
+and null `eventStats`. Comments are created from the Agent page against a cached
+GitHub `main` commit. The first Check trigger at or after that commit supplies
+its event stats; without a later trigger, `eventStats` remains null.
 
 ## Event body
 
@@ -25,7 +31,7 @@ Revocation and Project or Client deletion invalidate access immediately.
 
 `type` and `summary` are required. Peek generates `eventId` and `occurredAt`
 when omitted. Repeating an `eventId` within a Project is accepted without
-creating a duplicate. Reads are Project-scoped and bounded to 50 recent events.
+creating a duplicate. Reads are Project-scoped and bounded.
 
 Agents must send summaries only—not prompts, source code, secrets, credentials,
 or customer data. Agent events report intent and observations. GitHub, Vercel,

@@ -5,7 +5,7 @@ type GitHubCommitResponse = {
   html_url?: unknown
   commit?: {
     message?: unknown
-    committer?: { date?: unknown } | null
+    committer?: { date?: unknown; name?: unknown } | null
   } | null
   author?: { login?: unknown } | null
 }
@@ -43,6 +43,14 @@ export type GitHubAttribution = {
     mergedAt: number | null
     url: string
   }>
+}
+
+export type GitHubMainCommit = {
+  sha: string
+  title: string
+  author: string
+  committedAt: number
+  url: string
 }
 
 export type VercelAttribution = {
@@ -173,6 +181,52 @@ export async function fetchGitHubAttributionAt({
       url: requiredString(pullRequest.html_url, 'GITHUB_INVALID_RESPONSE'),
     })),
   }
+}
+
+export async function fetchGitHubMainCommitsPage({
+  repository,
+  token,
+  page,
+  perPage = 100,
+  fetcher = fetch,
+}: {
+  repository: string
+  token: string
+  page: number
+  perPage?: number
+  fetcher?: Fetcher
+}): Promise<GitHubMainCommit[]> {
+  if (!Number.isSafeInteger(page) || page < 1 || perPage < 1 || perPage > 100) {
+    throw new Error('INVALID_GITHUB_PAGE')
+  }
+  const url = new URL(
+    `https://api.github.com/repos/${encodeRepository(repository)}/commits`,
+  )
+  url.searchParams.set('sha', 'main')
+  url.searchParams.set('per_page', String(perPage))
+  url.searchParams.set('page', String(page))
+  const commits = await fetchJson<GitHubCommitResponse[]>(
+    fetcher,
+    url,
+    githubHeaders(token),
+    'GITHUB',
+  )
+  return commits.map((commit) => ({
+    sha: requiredString(commit.sha, 'GITHUB_INVALID_RESPONSE'),
+    title: requiredString(commit.commit?.message, 'GITHUB_INVALID_RESPONSE').split(
+      '\n',
+      1,
+    )[0],
+    author:
+      optionalString(commit.author?.login) ??
+      optionalString(commit.commit?.committer?.name) ??
+      'Unknown',
+    committedAt: requiredDate(
+      commit.commit?.committer?.date,
+      'GITHUB_INVALID_RESPONSE',
+    ),
+    url: requiredString(commit.html_url, 'GITHUB_INVALID_RESPONSE'),
+  }))
 }
 
 export async function fetchVercelAttributionAt({

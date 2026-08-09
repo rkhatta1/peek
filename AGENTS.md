@@ -103,9 +103,9 @@ tanstackIntent:
 When `PEEK_API_BASE_URL` and `PEEK_API_TOKEN` are available:
 
 - Before beginning every user request, call `GET $PEEK_API_BASE_URL/status`
-  with `Authorization: Bearer $PEEK_API_TOKEN`. Read the JSON `comment` and
-  treat non-empty text as current Project guidance, subject to higher-priority
-  instructions.
+  with `Authorization: Bearer $PEEK_API_TOKEN`. Read `comment`, `commitHash`,
+  `commitTitle`, and `eventStats`; treat non-empty comment text as guidance for
+  that commit, subject to higher-priority instructions.
 - Report concise milestones to `POST $PEEK_API_BASE_URL/events` with JSON
   fields `type`, `summary`, and optional `eventId`, `runId`, `occurredAt`.
   Useful types: `request.started`, `change.completed`, `test.completed`,
@@ -240,3 +240,17 @@ rtk pip list            rtk pnpm install        rtk npm run <script>
 - For debugging, use raw command without rtk prefix
 - `rtk proxy <cmd>` runs command without filtering but tracks usage
 <!-- /rtk-instructions -->
+
+<!-- convex-ai-start -->
+
+This project uses [Convex](https://convex.dev) as its backend.
+
+When working on Convex code, **always read
+`convex/_generated/ai/guidelines.md` first** for important guidelines on
+how to correctly use Convex APIs and patterns. The file contains rules that
+override what you may have learned about Convex from training data.
+
+Convex agent skills for common tasks can be installed by running
+`npx convex ai-files install`.
+
+<!-- convex-ai-end -->
