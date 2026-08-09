@@ -34,6 +34,31 @@ export const knownShas = internalQuery({
   },
 })
 
+export const finishSync = internalMutation({
+  args: {
+    ownerId: v.string(),
+    connectionId: v.id('codeConnections'),
+    headSha: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const connection = await ctx.db.get(args.connectionId)
+    if (
+      !connection ||
+      connection.ownerId !== args.ownerId ||
+      connection.provider !== 'github' ||
+      connection.status !== 'active'
+    ) {
+      return null
+    }
+    await ctx.db.patch(connection._id, {
+      lastSyncedHeadSha: args.headSha,
+      updatedAt: Date.now(),
+    })
+    return null
+  },
+})
+
 export const upsertPage = internalMutation({
   args: {
     ownerId: v.string(),

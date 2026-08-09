@@ -1,5 +1,6 @@
 import { v } from 'convex/values'
 
+import { internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { internalMutation, internalQuery } from './_generated/server'
 import { requireActiveProjectForOwner } from './lib/domain'
@@ -15,6 +16,7 @@ const internalConnectionValidator = v.object({
   provider: codeProviderValidator,
   externalId: v.string(),
   externalSlug: v.string(),
+  lastSyncedHeadSha: v.optional(v.string()),
   encryptedCredentials: v.optional(encryptedCredentialsValidator),
 })
 
@@ -58,6 +60,7 @@ export const listResolutionTargets = internalQuery({
           provider: connection.provider,
           externalId: connection.externalId,
           externalSlug: connection.externalSlug,
+          lastSyncedHeadSha: connection.lastSyncedHeadSha,
           encryptedCredentials: credentials
             ? {
                 algorithm: credentials.algorithm,
@@ -82,6 +85,7 @@ export const commitValidatedConnection = internalMutation({
     externalSlug: v.string(),
     name: v.string(),
     encryptedCredentials: encryptedCredentialsValidator,
+    replace: v.optional(v.boolean()),
   },
   returns: v.id('codeConnections'),
   handler: async (ctx, args) => {
@@ -101,7 +105,10 @@ export const commitValidatedConnection = internalMutation({
       .unique()
     const now = Date.now()
     let connectionId: Id<'codeConnections'>
-    if (existing) {
+    const repositoryChanged =
+      existing?.provider === 'github' &&
+      (existing.externalId !== args.externalId || args.replace === true)
+    if (existing && !repositoryChanged) {
       await ctx.db.patch(existing._id, {
         externalId: args.externalId,
         externalSlug: args.externalSlug,
@@ -111,6 +118,16 @@ export const commitValidatedConnection = internalMutation({
       })
       connectionId = existing._id
     } else {
+      if (existing) {
+        await ctx.db.patch(existing._id, { status: 'deleted', updatedAt: now })
+        const credentials = await ctx.db
+          .query('codeConnectionCredentials')
+          .withIndex('by_connection', (q) =>
+            q.eq('connectionId', existing._id),
+          )
+          .unique()
+        if (credentials) await ctx.db.delete(credentials._id)
+      }
       connectionId = await ctx.db.insert('codeConnections', {
         clientId: project.clientId,
         projectId: project._id,
@@ -126,6 +143,23 @@ export const commitValidatedConnection = internalMutation({
         createdAt: now,
         updatedAt: now,
       })
+      if (repositoryChanged) {
+        const endpoint = await ctx.db
+          .query('agentEndpoints')
+          .withIndex('by_project', (q) => q.eq('projectId', project._id))
+          .unique()
+        if (endpoint?.ownerId === args.ownerId) {
+          await ctx.db.patch(endpoint._id, {
+            activeCommitId: undefined,
+            updatedAt: now,
+          })
+        }
+        await ctx.scheduler.runAfter(
+          0,
+          internal.cleanup.deletedCodeConnection,
+          { ownerId: args.ownerId, connectionId: existing!._id },
+        )
+      }
     }
 
     const existingCredentials = await ctx.db

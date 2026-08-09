@@ -535,5 +535,41 @@ describe('Check and Agent ledgers', () => {
     expect(await owner.query(api.ledgerTotals.get, { projectId })).toMatchObject({
       agentCommits: 1,
     })
+
+    const replacementConnectionId = await owner.mutation(
+      internal.codeConnectionInternal.commitValidatedConnection,
+      {
+        ownerId: 'peek|owner',
+        projectId,
+        provider: 'github',
+        externalId: '456',
+        externalSlug: 'acme/replacement',
+        name: 'acme/replacement',
+        encryptedCredentials: {
+          algorithm: 'AES-GCM',
+          binding: 'replacement-binding',
+          ciphertext: 'replacement-ciphertext',
+          iv: 'replacement-iv',
+          keyId: 'key-v1',
+        },
+      },
+    )
+    expect(replacementConnectionId).not.toBe(connectionId)
+
+    const replacementCommits = await owner.query(api.agentCommits.list, {
+      projectId,
+      paginationOpts: { cursor: null, numItems: 10 },
+    })
+    expect(replacementCommits.page).toEqual([])
+
+    const replacementStatus = await t.fetch('/status', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    expect(await replacementStatus.json()).toEqual({
+      comment: '',
+      commitHash: null,
+      commitTitle: null,
+      eventStats: null,
+    })
   })
 })

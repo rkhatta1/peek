@@ -20,7 +20,12 @@ export const listByProject = query({
       )
       .take(2)
     return connections.map(
-      ({ ownerId: _ownerId, status: _status, ...connection }) => connection,
+      ({
+        ownerId: _ownerId,
+        status: _status,
+        lastSyncedHeadSha: _lastSyncedHeadSha,
+        ...connection
+      }) => connection,
     )
   },
 })

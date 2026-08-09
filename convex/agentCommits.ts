@@ -32,10 +32,22 @@ export const list = query({
   handler: async (ctx, args) => {
     const ownerId = await requireOwner(ctx)
     await requireActiveProjectForOwner(ctx, ownerId, args.projectId)
+    const connection = await ctx.db
+      .query('codeConnections')
+      .withIndex('by_project_and_provider_and_status', (q) =>
+        q
+          .eq('projectId', args.projectId)
+          .eq('provider', 'github')
+          .eq('status', 'active'),
+      )
+      .unique()
+    if (!connection || connection.ownerId !== ownerId) {
+      return { page: [], continueCursor: '', isDone: true }
+    }
     const result = await ctx.db
       .query('agentCommits')
-      .withIndex('by_project_and_committedAt', (q) =>
-        q.eq('projectId', args.projectId),
+      .withIndex('by_connection_and_committedAt', (q) =>
+        q.eq('connectionId', connection._id),
       )
       .order('desc')
       .paginate(args.paginationOpts)
@@ -58,6 +70,18 @@ export const setComment = mutation({
       ownerId,
       commit.projectId,
     )
+    const connection = await ctx.db
+      .query('codeConnections')
+      .withIndex('by_project_and_provider_and_status', (q) =>
+        q
+          .eq('projectId', project._id)
+          .eq('provider', 'github')
+          .eq('status', 'active'),
+      )
+      .unique()
+    if (!connection || connection._id !== commit.connectionId) {
+      throw new Error('Commit not found')
+    }
     const comment = args.comment.trim()
     if (comment.length > 2_000) throw new Error('Comment is too long')
     const now = Date.now()

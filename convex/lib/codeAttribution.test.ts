@@ -3,11 +3,43 @@ import { describe, expect, test, vi } from 'vitest'
 import {
   fetchGitHubAttributionAt,
   fetchVercelAttributionAt,
+  isGitHubCommitAncestor,
 } from './codeAttribution'
 
 const observedAt = Date.parse('2026-08-08T10:30:00.000Z')
 
 describe('code attribution providers', () => {
+  test('detects whether the previously synced head remains on main', async () => {
+    const ancestorFetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      Response.json({ status: 'ahead' }),
+    )
+    const divergedFetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      Response.json({ status: 'diverged' }),
+    )
+
+    await expect(
+      isGitHubCommitAncestor({
+        repository: 'acme/app',
+        base: '0123456789abcdef0123456789abcdef01234567',
+        head: '89abcdef0123456789abcdef0123456789abcdef',
+        token: 'github-token',
+        fetcher: ancestorFetcher,
+      }),
+    ).resolves.toBe(true)
+    await expect(
+      isGitHubCommitAncestor({
+        repository: 'acme/app',
+        base: '0123456789abcdef0123456789abcdef01234567',
+        head: '89abcdef0123456789abcdef0123456789abcdef',
+        token: 'github-token',
+        fetcher: divergedFetcher,
+      }),
+    ).resolves.toBe(false)
+    expect(ancestorFetcher.mock.calls[0]?.[0].toString()).toBe(
+      'https://api.github.com/repos/acme/app/compare/0123456789abcdef0123456789abcdef01234567...89abcdef0123456789abcdef0123456789abcdef',
+    )
+  })
+
   test('resolves the latest main commit at or before the observation with its pull requests', async () => {
     const fetcher = vi
       .fn<typeof fetch>()

@@ -229,6 +229,29 @@ export async function fetchGitHubMainCommitsPage({
   }))
 }
 
+export async function isGitHubCommitAncestor({
+  repository,
+  base,
+  head,
+  token,
+  fetcher = fetch,
+}: {
+  repository: string
+  base: string
+  head: string
+  token: string
+  fetcher?: Fetcher
+}) {
+  const url = new URL(
+    `https://api.github.com/repos/${encodeRepository(repository)}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`,
+  )
+  const response = await fetcher(url, { headers: githubHeaders(token) })
+  if (response.status === 404) return false
+  if (!response.ok) throw new Error(`GITHUB_HTTP_${response.status}`)
+  const comparison = (await response.json()) as { status?: unknown }
+  return comparison.status === 'ahead' || comparison.status === 'identical'
+}
+
 export async function fetchVercelAttributionAt({
   projectId,
   observedAt,

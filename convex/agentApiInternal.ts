@@ -147,8 +147,20 @@ async function statusPayload(
 ) {
   if (!endpoint.activeCommitId) return emptyStatus()
   const commit = await ctx.db.get(endpoint.activeCommitId)
+  const connection = await ctx.db
+    .query('codeConnections')
+    .withIndex('by_project_and_provider_and_status', (q) =>
+      q
+        .eq('projectId', projectId)
+        .eq('provider', 'github')
+        .eq('status', 'active'),
+    )
+    .unique()
   if (
     !commit ||
+    !connection ||
+    connection._id !== commit.connectionId ||
+    connection.ownerId !== endpoint.ownerId ||
     commit.ownerId !== endpoint.ownerId ||
     commit.projectId !== projectId ||
     !commit.comment

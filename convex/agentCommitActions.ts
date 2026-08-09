@@ -4,8 +4,11 @@ import { v } from 'convex/values'
 
 import { internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
-import { action, env } from './_generated/server'
-import { fetchGitHubMainCommitsPage } from './lib/codeAttribution'
+import { action, env, type ActionCtx } from './_generated/server'
+import {
+  fetchGitHubMainCommitsPage,
+  isGitHubCommitAncestor,
+} from './lib/codeAttribution'
 import { requireOwner } from './lib/domain'
 import {
   decryptCodeConnectionCredentials,
@@ -20,6 +23,7 @@ type ResolutionTarget = {
   provider: 'github' | 'vercel'
   externalId: string
   externalSlug: string
+  lastSyncedHeadSha?: string
   encryptedCredentials?: EncryptedCredentials
 }
 
@@ -42,19 +46,55 @@ export const syncMain = action({
     if (credentials.provider !== 'github') {
       throw new Error('CREDENTIAL_PROVIDER_MISMATCH')
     }
+    const firstPage = await fetchGitHubMainCommitsPage({
+      repository: target.externalSlug,
+      token: credentials.token,
+      page: 1,
+      perPage: PAGE_SIZE,
+    })
+    const headSha = firstPage[0]?.sha.toLowerCase()
+    if (!headSha) return { synced: 0, truncated: false }
+    let connectionId = target.connectionId
+    if (
+      target.lastSyncedHeadSha &&
+      target.lastSyncedHeadSha !== headSha &&
+      !(await isGitHubCommitAncestor({
+        repository: target.externalSlug,
+        base: target.lastSyncedHeadSha,
+        head: headSha,
+        token: credentials.token,
+      }))
+    ) {
+      connectionId = await ctx.runMutation(
+        internal.codeConnectionInternal.commitValidatedConnection,
+        {
+          ownerId,
+          projectId: args.projectId,
+          provider: 'github',
+          externalId: target.externalId,
+          externalSlug: target.externalSlug,
+          name: target.externalSlug,
+          encryptedCredentials: target.encryptedCredentials,
+          replace: true,
+        },
+      )
+    }
     let synced = 0
     for (let page = 1; page <= MAX_PAGES_PER_SYNC; page += 1) {
-      const commits = await fetchGitHubMainCommitsPage({
-        repository: target.externalSlug,
-        token: credentials.token,
-        page,
-        perPage: PAGE_SIZE,
-      })
+      const commits =
+        page === 1
+          ? firstPage
+          : await fetchGitHubMainCommitsPage({
+              repository: target.externalSlug,
+              token: credentials.token,
+              page,
+              perPage: PAGE_SIZE,
+            })
       if (commits.length) {
         const knownShas: string[] = await ctx.runQuery(
           internal.agentCommitInternal.knownShas,
           {
-            connectionId: target.connectionId,
+            connectionId,
             shas: commits.map((commit) => commit.sha),
           },
         )
@@ -63,21 +103,44 @@ export const syncMain = action({
           (commit) => !known.has(commit.sha.toLowerCase()),
         )
         if (unseen.length) {
-          await ctx.runMutation(internal.agentCommitInternal.upsertPage, {
-            ownerId,
-            projectId: args.projectId,
-            connectionId: target.connectionId,
-            commits: unseen,
-          })
-          synced += unseen.length
+          const result = await ctx.runMutation(
+            internal.agentCommitInternal.upsertPage,
+            {
+              ownerId,
+              projectId: args.projectId,
+              connectionId,
+              commits: unseen,
+            },
+          )
+          synced += result.inserted
         }
-        if (known.size) return { synced, truncated: false }
+        if (known.size) {
+          await finishSync(ctx, ownerId, connectionId, headSha)
+          return { synced, truncated: false }
+        }
       }
-      if (commits.length < PAGE_SIZE) return { synced, truncated: false }
+      if (commits.length < PAGE_SIZE) {
+        await finishSync(ctx, ownerId, connectionId, headSha)
+        return { synced, truncated: false }
+      }
     }
+    await finishSync(ctx, ownerId, connectionId, headSha)
     return { synced, truncated: true }
   },
 })
+
+async function finishSync(
+  ctx: ActionCtx,
+  ownerId: string,
+  connectionId: Id<'codeConnections'>,
+  headSha: string,
+) {
+  await ctx.runMutation(internal.agentCommitInternal.finishSync, {
+    ownerId,
+    connectionId,
+    headSha,
+  })
+}
 
 function encryptionKeys() {
   return [

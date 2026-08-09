@@ -153,6 +153,7 @@ export default defineSchema({
     branch: v.literal('main'),
     environment: v.literal('production'),
     status: lifecycleStatusValidator,
+    lastSyncedHeadSha: v.optional(v.string()),
     lastValidatedAt: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -215,6 +216,7 @@ export default defineSchema({
   })
     .index('by_project_and_committedAt', ['projectId', 'committedAt'])
     .index('by_connection_and_sha', ['connectionId', 'sha'])
+    .index('by_connection_and_committedAt', ['connectionId', 'committedAt'])
     .index('by_client', ['clientId']),
 
   agentEvents: defineTable({
