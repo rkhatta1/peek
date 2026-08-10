@@ -47,11 +47,12 @@ describe('access gate', () => {
     expect(signOut.status).not.toBe(403)
   })
 
-  test('does not rate limit credential requests outside production', async () => {
+  test('disables rate limiting through the deployment flag', async () => {
     const secret = 'test-secret-at-least-32-characters-long'
     vi.stubEnv('BETTER_AUTH_SECRET', secret)
     vi.stubEnv('SITE_URL', 'http://localhost:3000')
-    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('AUTH_RATE_LIMIT_ENABLED', 'false')
     const t = convexTest(schema, modules)
     registerBetterAuth(t)
     const token = await createAccessToken(secret, Date.now() + 60_000)

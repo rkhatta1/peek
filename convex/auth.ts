@@ -15,6 +15,10 @@ import {
 } from './lib/accessGateCrypto'
 
 const siteUrl = process.env.SITE_URL ?? 'http://localhost:3004'
+const authRateLimitEnabled =
+  process.env.AUTH_RATE_LIMIT_ENABLED === 'true' ||
+  (process.env.AUTH_RATE_LIMIT_ENABLED !== 'false' &&
+    process.env.NODE_ENV === 'production')
 
 export const authComponent = createClient<DataModel>(components.betterAuth)
 
@@ -54,7 +58,7 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
       },
     },
     rateLimit: {
-      enabled: process.env.NODE_ENV === 'production',
+      enabled: authRateLimitEnabled,
       storage: 'database',
       window: 60,
       max: 100,
