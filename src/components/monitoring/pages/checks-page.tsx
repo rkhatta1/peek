@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { usePaginatedQuery, useQuery } from 'convex/react'
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 
@@ -15,6 +15,12 @@ import {
   TableRow,
 } from '#/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '#/components/ui/tooltip'
 import { usePaginatedLedger } from '#/hooks/use-paginated-ledger'
 import { AnimatedBackground } from '#/components/motion-primitives/animated-background'
 import { LedgerPagination } from '../ledger-pagination'
@@ -128,7 +134,8 @@ function TriggerLedger({
   })
 
   return (
-    <Card className="gap-0 overflow-hidden py-0 shadow-none">
+    <TooltipProvider delayDuration={700}>
+      <Card className="gap-0 overflow-hidden py-0 shadow-none">
       <Table className="table-fixed">
         <TableHeader>
           <TableRow>
@@ -172,13 +179,19 @@ function TriggerLedger({
                 <TableCell className="hidden tabular-nums md:table-cell">
                   {trigger.serviceCount}
                 </TableCell>
-                <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
-                  {trigger.operationalCount} operational · {trigger.attentionCount}{' '}
-                  attention · {trigger.unavailableCount} unavailable
+                <TableCell className="hidden overflow-hidden text-xs text-muted-foreground lg:table-cell">
+                  <TruncatedLedgerValue
+                    tooltip={`${trigger.operationalCount} operational · ${trigger.attentionCount} attention · ${trigger.unavailableCount} unavailable`}
+                  >
+                    {trigger.operationalCount} operational · {trigger.attentionCount}{' '}
+                    attention · {trigger.unavailableCount} unavailable
+                  </TruncatedLedgerValue>
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-right text-xs text-muted-foreground tabular-nums sm:text-left">
-                  <span className="sm:hidden">{formatShortDate(trigger.triggeredAt)}</span>
-                  <span className="hidden sm:inline">{formatDate(trigger.triggeredAt)}</span>
+                <TableCell className="overflow-hidden text-right text-xs text-muted-foreground tabular-nums sm:text-left">
+                  <TruncatedLedgerValue tooltip={formatDate(trigger.triggeredAt)}>
+                    <span className="sm:hidden">{formatShortDate(trigger.triggeredAt)}</span>
+                    <span className="hidden sm:inline">{formatDate(trigger.triggeredAt)}</span>
+                  </TruncatedLedgerValue>
                 </TableCell>
               </TableRow>
             ))
@@ -202,7 +215,27 @@ function TriggerLedger({
         rowsPerPage={rowsPerPage}
         totalRows={totalRows}
       />
-    </Card>
+      </Card>
+    </TooltipProvider>
+  )
+}
+
+function TruncatedLedgerValue({
+  children,
+  tooltip,
+}: {
+  children: ReactNode
+  tooltip: string
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="block min-w-0 truncate" tabIndex={0}>
+          {children}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{tooltip}</TooltipContent>
+    </Tooltip>
   )
 }
 
