@@ -25,10 +25,20 @@ on the Convex deployment:
 ```bash
 pnpm convex env set SITE_URL http://localhost:3004
 pnpm convex env set BETTER_AUTH_SECRET <generated-secret>
-pnpm convex env set PEEK_ACCESS_CODE <managed-development-code>
+pnpm convex env set PEEK_ACCESS_CODE <6-12-character-code>
 openssl rand -base64 32 | pnpm convex env set PEEK_CREDENTIAL_ENCRYPTION_KEY
 pnpm convex run accessGate:seedDevelopmentAccessCode --push
 ```
+
+Production provisioning and later rotations are explicit: update
+`PEEK_ACCESS_CODE` on the production Convex deployment, then run:
+
+```bash
+pnpm convex run accessGate:provisionAccessCode --prod
+```
+
+Changing the environment variable alone does not change the stored access-code
+hash.
 
 Keep the secret out of committed files. The TanStack app proxies `/api/auth/*`
 to the Convex HTTP endpoint and passes the auth token into Convex SSR. The seed
