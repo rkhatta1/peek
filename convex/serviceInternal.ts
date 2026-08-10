@@ -173,6 +173,7 @@ export const commitConnectedService = internalMutation({
     const { name, normalizedName } = normalizeName(args.name, 'Service')
     const environment = normalizeEnvironment(args.environment)
     const now = Date.now()
+    const runId = crypto.randomUUID()
     let serviceId = args.serviceId
 
     if (serviceId) {
@@ -249,6 +250,9 @@ export const commitConnectedService = internalMutation({
       projectId: project._id,
       serviceId,
       ownerId: args.ownerId,
+      runId,
+      serviceName: name,
+      environment,
       ...args.snapshot,
     })
     const evaluation = evaluateSnapshot(args.snapshot, {
@@ -257,6 +261,7 @@ export const commitConnectedService = internalMutation({
     const unavailable = args.snapshot.status === 'unavailable'
     await insertCheckTrigger(ctx, {
       ownerId: args.ownerId,
+      runId,
       projectId: project._id,
       source: 'connection',
       triggeredAt: args.snapshot.capturedAt,
@@ -275,6 +280,7 @@ export const commitConnectedService = internalMutation({
 export const markCollection = internalMutation({
   args: {
     serviceId: v.id('serviceConnections'),
+    runId: v.string(),
     snapshot: providerSnapshotValidator,
     errorCode: v.optional(v.string()),
   },
@@ -293,6 +299,9 @@ export const markCollection = internalMutation({
       projectId: service.projectId,
       serviceId: service._id,
       ownerId: service.ownerId,
+      runId: args.runId,
+      serviceName: service.name,
+      environment: service.environment,
       ...args.snapshot,
       errorCode: args.errorCode,
     })

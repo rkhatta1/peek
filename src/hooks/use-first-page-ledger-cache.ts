@@ -8,6 +8,12 @@ type CacheEntry<T> = {
   version: 1
 }
 
+type ValueCacheEntry<T> = {
+  revision: number
+  value: T
+  version: 1
+}
+
 export function ledgerCacheKey(
   projectId: string,
   ledger: string,
@@ -49,6 +55,44 @@ export function writeLedgerFirstPage<T>(
 ) {
   try {
     const entry: CacheEntry<T> = { revision, rows, version: 1 }
+    storage.setItem(key, JSON.stringify(entry))
+  } catch {
+    // Cache writes are best-effort (private mode and quota failures are safe).
+  }
+}
+
+export function readLedgerValue<T>(
+  storage: Storage,
+  key: string,
+  revision: number,
+): T | undefined {
+  try {
+    const value = storage.getItem(key)
+    if (!value) return undefined
+    const entry = JSON.parse(value) as Partial<ValueCacheEntry<T>>
+    if (
+      entry.version !== 1 ||
+      entry.revision !== revision ||
+      !Object.prototype.hasOwnProperty.call(entry, 'value')
+    ) {
+      storage.removeItem(key)
+      return undefined
+    }
+    return entry.value
+  } catch {
+    storage.removeItem(key)
+    return undefined
+  }
+}
+
+export function writeLedgerValue<T>(
+  storage: Storage,
+  key: string,
+  revision: number,
+  value: T,
+) {
+  try {
+    const entry: ValueCacheEntry<T> = { revision, value, version: 1 }
     storage.setItem(key, JSON.stringify(entry))
   } catch {
     // Cache writes are best-effort (private mode and quota failures are safe).
@@ -118,6 +162,54 @@ export function useFirstPageLedgerCache<T>({
   return status === 'LoadingFirstPage' && !networkRows.length
     ? cachedRows
     : networkRows
+}
+
+export function useLedgerValueCache<T>({
+  cacheKey,
+  networkValue,
+  revision,
+}: {
+  cacheKey: string | null
+  networkValue: T | undefined
+  revision: number | undefined
+}) {
+  const [cached, setCached] = useState<{
+    key: string
+    revision: number
+    value: T | undefined
+  } | null>(null)
+
+  useEffect(() => {
+    if (
+      cacheKey === null ||
+      revision === undefined ||
+      typeof window === 'undefined'
+    ) {
+      return
+    }
+    setCached({
+      key: cacheKey,
+      revision,
+      value: readLedgerValue<T>(window.localStorage, cacheKey, revision),
+    })
+  }, [cacheKey, revision])
+
+  useEffect(() => {
+    if (
+      cacheKey === null ||
+      revision === undefined ||
+      networkValue === undefined ||
+      typeof window === 'undefined'
+    ) {
+      return
+    }
+    writeLedgerValue(window.localStorage, cacheKey, revision, networkValue)
+  }, [cacheKey, networkValue, revision])
+
+  if (networkValue !== undefined) return networkValue
+  return cached?.key === cacheKey && cached.revision === revision
+    ? cached.value
+    : undefined
 }
 
 function projectLedgerPrefix(projectId: string) {
