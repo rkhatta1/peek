@@ -1,7 +1,7 @@
 import { v } from 'convex/values'
 
 import { internal } from './_generated/api'
-import type { Id } from './_generated/dataModel'
+import type { Doc, Id } from './_generated/dataModel'
 import { internalMutation, internalQuery } from './_generated/server'
 import { requireActiveProjectForOwner } from './lib/domain'
 import {
@@ -10,7 +10,7 @@ import {
 } from './lib/validators'
 
 const ACTIVE = 'active' as const
-const COMMIT_SYNC_COOLDOWN_MS = 60_000
+const COMMIT_SYNC_LEASE_MS = 60_000
 
 const internalConnectionValidator = v.object({
   connectionId: v.id('codeConnections'),
@@ -82,32 +82,62 @@ export const claimCommitSync = internalMutation({
     ownerId: v.string(),
     projectId: v.id('projects'),
     connectionId: v.id('codeConnections'),
+    runId: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     await requireActiveProjectForOwner(ctx, args.ownerId, args.projectId)
     const connection = await ctx.db.get(args.connectionId)
-    if (
-      !connection ||
-      connection.ownerId !== args.ownerId ||
-      connection.projectId !== args.projectId ||
-      connection.provider !== 'github' ||
-      connection.status !== ACTIVE
-    ) {
+    if (!isActiveGitHubConnection(connection, args)) {
       throw new Error('GitHub connection not found')
     }
+    requireRunId(args.runId)
     const now = Date.now()
     if (
+      connection.commitSyncLease &&
+      connection.commitSyncLease.runId !== args.runId &&
+      connection.commitSyncLease.expiresAt > now
+    ) {
+      throw new Error('COMMIT_SYNC_IN_PROGRESS')
+    }
+    if (
+      connection.commitSyncLease?.runId !== args.runId &&
       connection.lastCommitSyncStartedAt !== undefined &&
-      now - connection.lastCommitSyncStartedAt < COMMIT_SYNC_COOLDOWN_MS
+      now - connection.lastCommitSyncStartedAt < COMMIT_SYNC_LEASE_MS
     ) {
       throw new Error('COMMIT_SYNC_COOLDOWN')
     }
     await ctx.db.patch(connection._id, {
       lastCommitSyncStartedAt: now,
+      commitSyncLease: { runId: args.runId, expiresAt: now + COMMIT_SYNC_LEASE_MS },
       updatedAt: now,
     })
     return null
+  },
+})
+
+export const heartbeatCommitSync = internalMutation({
+  args: {
+    ownerId: v.string(),
+    projectId: v.id('projects'),
+    connectionId: v.id('codeConnections'),
+    runId: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const connection = await ctx.db.get(args.connectionId)
+    if (
+      !isActiveGitHubConnection(connection, args) ||
+      connection.commitSyncLease?.runId !== args.runId
+    ) {
+      return false
+    }
+    const now = Date.now()
+    await ctx.db.patch(connection._id, {
+      commitSyncLease: { runId: args.runId, expiresAt: now + COMMIT_SYNC_LEASE_MS },
+      updatedAt: now,
+    })
+    return true
   },
 })
 
@@ -121,6 +151,7 @@ export const commitValidatedConnection = internalMutation({
     name: v.string(),
     encryptedCredentials: encryptedCredentialsValidator,
     replace: v.optional(v.boolean()),
+    commitSyncRunId: v.optional(v.string()),
   },
   returns: v.id('codeConnections'),
   handler: async (ctx, args) => {
@@ -138,6 +169,12 @@ export const commitValidatedConnection = internalMutation({
           .eq('status', ACTIVE),
       )
       .unique()
+    if (
+      args.commitSyncRunId !== undefined &&
+      existing?.commitSyncLease?.runId !== args.commitSyncRunId
+    ) {
+      throw new Error('COMMIT_SYNC_STALE')
+    }
     const now = Date.now()
     let connectionId: Id<'codeConnections'>
     const repositoryChanged =
@@ -216,3 +253,25 @@ export const commitValidatedConnection = internalMutation({
     return connectionId
   },
 })
+
+function isActiveGitHubConnection(
+  connection: Doc<'codeConnections'> | null,
+  args: {
+    ownerId: string
+    projectId: Id<'projects'>
+    connectionId: Id<'codeConnections'>
+  },
+): connection is Doc<'codeConnections'> {
+  return (
+    connection !== null &&
+    connection._id === args.connectionId &&
+    connection.ownerId === args.ownerId &&
+    connection.projectId === args.projectId &&
+    connection.provider === 'github' &&
+    connection.status === ACTIVE
+  )
+}
+
+function requireRunId(runId: string) {
+  if (!runId || runId.length > 100) throw new Error('INVALID_COMMIT_SYNC_RUN')
+}

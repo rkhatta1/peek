@@ -1,5 +1,7 @@
 type Fetcher = typeof fetch
 
+const PROVIDER_TIMEOUT_MS = 15_000
+
 type GitHubCommitResponse = {
   sha?: unknown
   html_url?: unknown
@@ -252,7 +254,12 @@ export async function isGitHubCommitAncestor({
   const url = new URL(
     `https://api.github.com/repos/${encodeRepository(repository)}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`,
   )
-  const response = await fetcher(url, { headers: githubHeaders(token) })
+  const response = await fetchWithTimeout(
+    fetcher,
+    url,
+    { headers: githubHeaders(token) },
+    'GITHUB',
+  )
   if (response.status === 404) return false
   if (!response.ok) throw new Error(`GITHUB_HTTP_${response.status}`)
   const comparison = (await response.json()) as { status?: unknown }
@@ -318,9 +325,32 @@ async function fetchJson<T>(
   headers: HeadersInit,
   provider: 'GITHUB' | 'VERCEL',
 ): Promise<T> {
-  const response = await fetcher(url, { headers })
+  const response = await fetchWithTimeout(
+    fetcher,
+    url,
+    { headers },
+    provider,
+  )
   if (!response.ok) throw new Error(`${provider}_HTTP_${response.status}`)
   return (await response.json()) as T
+}
+
+async function fetchWithTimeout(
+  fetcher: Fetcher,
+  url: URL,
+  init: RequestInit,
+  provider: 'GITHUB' | 'VERCEL',
+) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS)
+  try {
+    return await fetcher(url, { ...init, signal: controller.signal })
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error(`${provider}_TIMEOUT`)
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 function githubHeaders(token: string): HeadersInit {

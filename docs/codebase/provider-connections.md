@@ -59,7 +59,9 @@ Services. Each Project supports one active connection per code provider.
 - The Agent page incrementally syncs `main` commits in GitHub pages of 100,
   stops when it reaches a cached SHA, and stores only bounded commit metadata.
   Sync is capped at 10,000 commits and one request per connection per minute.
-  Its Convex ledger uses indexed cursor pagination.
+  A renewable 60-second lease fences overlapping and stale sync writes. Provider
+  requests time out after 15 seconds. Its Convex ledger uses indexed cursor
+  pagination.
 - Vercel stores the validated project ID and name. Event drawers request ready
   production deployments from `main` created before the observation, then
   select the newest deployment whose ready timestamp is not after the event.

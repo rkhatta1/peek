@@ -38,10 +38,12 @@ export const syncMain = action({
     )
     const target = targets.find((candidate) => candidate.provider === 'github')
     if (!target?.encryptedCredentials) throw new Error('GITHUB_NOT_CONNECTED')
+    const runId = crypto.randomUUID()
     await ctx.runMutation(internal.codeConnectionInternal.claimCommitSync, {
       ownerId,
       projectId: args.projectId,
       connectionId: target.connectionId,
+      runId,
     })
     const credentials = await decryptCodeConnectionCredentials(
       target.encryptedCredentials,
@@ -58,31 +60,48 @@ export const syncMain = action({
       perPage: PAGE_SIZE,
     })
     const headSha = firstPage[0]?.sha.toLowerCase()
-    if (!headSha) return { synced: 0, truncated: false }
+    if (!headSha) {
+      await finishSync(ctx, ownerId, target.connectionId, runId)
+      return { synced: 0, truncated: false }
+    }
     let connectionId = target.connectionId
     if (
       target.lastSyncedHeadSha &&
-      target.lastSyncedHeadSha !== headSha &&
-      !(await isGitHubCommitAncestor({
+      target.lastSyncedHeadSha !== headSha
+    ) {
+      const remainsAncestor = await isGitHubCommitAncestor({
         repository: target.externalSlug,
         base: target.lastSyncedHeadSha,
         head: headSha,
         token: credentials.token,
-      }))
-    ) {
-      connectionId = await ctx.runMutation(
-        internal.codeConnectionInternal.commitValidatedConnection,
-        {
+      })
+      if (!remainsAncestor) {
+        await heartbeatSync(
+          ctx,
           ownerId,
-          projectId: args.projectId,
-          provider: 'github',
-          externalId: target.externalId,
-          externalSlug: target.externalSlug,
-          name: target.externalSlug,
-          encryptedCredentials: target.encryptedCredentials,
-          replace: true,
-        },
-      )
+          args.projectId,
+          connectionId,
+          runId,
+        )
+        connectionId = await ctx.runMutation(
+          internal.codeConnectionInternal.commitValidatedConnection,
+          {
+            ownerId,
+            projectId: args.projectId,
+            provider: 'github',
+            externalId: target.externalId,
+            externalSlug: target.externalSlug,
+            name: target.externalSlug,
+            encryptedCredentials: target.encryptedCredentials,
+            replace: true,
+            commitSyncRunId: runId,
+          },
+        )
+        await ctx.runMutation(
+          internal.codeConnectionInternal.claimCommitSync,
+          { ownerId, projectId: args.projectId, connectionId, runId },
+        )
+      }
     }
     let synced = 0
     for (let page = 1; page <= MAX_PAGES_PER_SYNC; page += 1) {
@@ -95,6 +114,7 @@ export const syncMain = action({
               page,
               perPage: PAGE_SIZE,
             })
+      await heartbeatSync(ctx, ownerId, args.projectId, connectionId, runId)
       if (commits.length) {
         const knownShas: string[] = await ctx.runQuery(
           internal.agentCommitInternal.knownShas,
@@ -114,22 +134,23 @@ export const syncMain = action({
               ownerId,
               projectId: args.projectId,
               connectionId,
+              runId,
               commits: unseen,
             },
           )
           synced += result.inserted
         }
         if (known.size) {
-          await finishSync(ctx, ownerId, connectionId, headSha)
+          await finishSync(ctx, ownerId, connectionId, runId, headSha)
           return { synced, truncated: false }
         }
       }
       if (commits.length < PAGE_SIZE) {
-        await finishSync(ctx, ownerId, connectionId, headSha)
+        await finishSync(ctx, ownerId, connectionId, runId, headSha)
         return { synced, truncated: false }
       }
     }
-    await finishSync(ctx, ownerId, connectionId, headSha)
+    await finishSync(ctx, ownerId, connectionId, runId, headSha)
     return { synced, truncated: true }
   },
 })
@@ -138,13 +159,38 @@ async function finishSync(
   ctx: ActionCtx,
   ownerId: string,
   connectionId: Id<'codeConnections'>,
-  headSha: string,
+  runId: string,
+  headSha?: string,
 ) {
-  await ctx.runMutation(internal.agentCommitInternal.finishSync, {
-    ownerId,
-    connectionId,
-    headSha,
-  })
+  const finished: boolean = await ctx.runMutation(
+    internal.agentCommitInternal.finishSync,
+    {
+      ownerId,
+      connectionId,
+      runId,
+      headSha,
+    },
+  )
+  if (!finished) throw new Error('COMMIT_SYNC_STALE')
+}
+
+async function heartbeatSync(
+  ctx: ActionCtx,
+  ownerId: string,
+  projectId: Id<'projects'>,
+  connectionId: Id<'codeConnections'>,
+  runId: string,
+) {
+  const active: boolean = await ctx.runMutation(
+    internal.codeConnectionInternal.heartbeatCommitSync,
+    {
+      ownerId,
+      projectId,
+      connectionId,
+      runId,
+    },
+  )
+  if (!active) throw new Error('COMMIT_SYNC_STALE')
 }
 
 function encryptionKeys() {

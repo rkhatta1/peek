@@ -167,6 +167,9 @@ export default defineSchema({
     status: lifecycleStatusValidator,
     lastSyncedHeadSha: v.optional(v.string()),
     lastCommitSyncStartedAt: v.optional(v.number()),
+    commitSyncLease: v.optional(
+      v.object({ runId: v.string(), expiresAt: v.number() }),
+    ),
     lastValidatedAt: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),

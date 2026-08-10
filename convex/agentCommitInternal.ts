@@ -38,24 +38,32 @@ export const finishSync = internalMutation({
   args: {
     ownerId: v.string(),
     connectionId: v.id('codeConnections'),
-    headSha: v.string(),
+    runId: v.string(),
+    headSha: v.optional(v.string()),
   },
-  returns: v.null(),
+  returns: v.boolean(),
   handler: async (ctx, args) => {
     const connection = await ctx.db.get(args.connectionId)
     if (
       !connection ||
       connection.ownerId !== args.ownerId ||
       connection.provider !== 'github' ||
-      connection.status !== 'active'
+      connection.status !== 'active' ||
+      connection.commitSyncLease?.runId !== args.runId
     ) {
-      return null
+      return false
+    }
+    if (args.headSha && !/^[a-f0-9]{40}$/i.test(args.headSha)) {
+      throw new Error('Invalid GitHub head SHA')
     }
     await ctx.db.patch(connection._id, {
-      lastSyncedHeadSha: args.headSha,
+      ...(args.headSha
+        ? { lastSyncedHeadSha: args.headSha.toLowerCase() }
+        : {}),
+      commitSyncLease: undefined,
       updatedAt: Date.now(),
     })
-    return null
+    return true
   },
 })
 
@@ -64,6 +72,7 @@ export const upsertPage = internalMutation({
     ownerId: v.string(),
     projectId: v.id('projects'),
     connectionId: v.id('codeConnections'),
+    runId: v.string(),
     commits: v.array(commitValidator),
   },
   returns: v.object({ inserted: v.number(), updated: v.number() }),
@@ -82,6 +91,9 @@ export const upsertPage = internalMutation({
       connection.status !== 'active'
     ) {
       throw new Error('GitHub connection not found')
+    }
+    if (connection.commitSyncLease?.runId !== args.runId) {
+      throw new Error('COMMIT_SYNC_STALE')
     }
     if (args.commits.length > 100) throw new Error('Commit page is too large')
     let inserted = 0

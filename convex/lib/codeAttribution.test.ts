@@ -10,6 +10,29 @@ import {
 const observedAt = Date.parse('2026-08-08T10:30:00.000Z')
 
 describe('code attribution providers', () => {
+  test('aborts GitHub requests after the provider timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      const signals: AbortSignal[] = []
+      const fetcher = vi.fn<typeof fetch>((_url, init) => {
+        if (init?.signal) signals.push(init.signal)
+        return new Promise<Response>(() => {})
+      })
+
+      void fetchGitHubMainCommitsPage({
+        repository: 'acme/app',
+        token: 'github-token',
+        page: 1,
+        fetcher,
+      })
+      expect(signals).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(15_000)
+      expect(signals[0]?.aborted).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   test('bounds provider-controlled commit display fields', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
       Response.json([

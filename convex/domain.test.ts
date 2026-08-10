@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 import { convexTest } from 'convex-test'
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 
 import { api, internal } from './_generated/api'
 import schema from './schema'
@@ -222,21 +222,136 @@ describe('Project code connections', () => {
       }),
     ])
     expect(JSON.stringify(connections)).not.toContain('github-client-ciphertext')
-    await owner.mutation(internal.codeConnectionInternal.claimCommitSync, {
-      ownerId: 'peek|owner',
-      projectId,
-      connectionId,
-    })
-    await expect(
-      owner.mutation(internal.codeConnectionInternal.claimCommitSync, {
-        ownerId: 'peek|owner',
-        projectId,
-        connectionId,
-      }),
-    ).rejects.toThrow('COMMIT_SYNC_COOLDOWN')
     await expect(
       stranger.query(api.codeConnections.listByProject, { projectId }),
     ).rejects.toThrow('Project not found')
+  })
+
+  test('leases commit syncs and fences stale page and finish writes', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    try {
+      const t = testBackend()
+      const owner = t.withIdentity({ tokenIdentifier: 'peek|owner' })
+      const clientId = await owner.mutation(api.clients.create, { name: 'Acme' })
+      const projectId = await owner.mutation(api.projects.create, {
+        clientId,
+        name: 'Atlas',
+      })
+      const connectionId = await owner.mutation(
+        internal.codeConnectionInternal.commitValidatedConnection,
+        {
+          ownerId: 'peek|owner',
+          projectId,
+          provider: 'github',
+          externalId: '123456',
+          externalSlug: 'acme/atlas',
+          name: 'acme/atlas',
+          encryptedCredentials: {
+            algorithm: 'AES-GCM',
+            binding: 'code-binding',
+            ciphertext: 'github-client-ciphertext',
+            iv: 'code-initialization-vector',
+            keyId: 'key-v1',
+          },
+        },
+      )
+
+      await owner.mutation(internal.codeConnectionInternal.claimCommitSync, {
+        ownerId: 'peek|owner',
+        projectId,
+        connectionId,
+        runId: 'run-1',
+      })
+      await expect(
+        owner.mutation(internal.codeConnectionInternal.heartbeatCommitSync, {
+          ownerId: 'peek|owner',
+          projectId,
+          connectionId,
+          runId: 'run-1',
+        }),
+      ).resolves.toBe(true)
+      await expect(
+        owner.mutation(internal.codeConnectionInternal.claimCommitSync, {
+          ownerId: 'peek|owner',
+          projectId,
+          connectionId,
+          runId: 'run-2',
+        }),
+      ).rejects.toThrow('COMMIT_SYNC_IN_PROGRESS')
+
+      clock.mockReturnValue(61_001)
+      await owner.mutation(internal.codeConnectionInternal.claimCommitSync, {
+        ownerId: 'peek|owner',
+        projectId,
+        connectionId,
+        runId: 'run-2',
+      })
+      await expect(
+        owner.mutation(internal.codeConnectionInternal.heartbeatCommitSync, {
+          ownerId: 'peek|owner',
+          projectId,
+          connectionId,
+          runId: 'run-1',
+        }),
+      ).resolves.toBe(false)
+      await expect(
+        owner.mutation(
+          internal.codeConnectionInternal.commitValidatedConnection,
+          {
+            ownerId: 'peek|owner',
+            projectId,
+            provider: 'github',
+            externalId: '123456',
+            externalSlug: 'acme/atlas',
+            name: 'acme/atlas',
+            encryptedCredentials: {
+              algorithm: 'AES-GCM',
+              binding: 'code-binding',
+              ciphertext: 'github-client-ciphertext',
+              iv: 'code-initialization-vector',
+              keyId: 'key-v1',
+            },
+            replace: true,
+            commitSyncRunId: 'run-1',
+          },
+        ),
+      ).rejects.toThrow('COMMIT_SYNC_STALE')
+      await expect(
+        owner.mutation(internal.agentCommitInternal.upsertPage, {
+          ownerId: 'peek|owner',
+          projectId,
+          connectionId,
+          runId: 'run-1',
+          commits: [],
+        }),
+      ).rejects.toThrow('COMMIT_SYNC_STALE')
+      await expect(
+        owner.mutation(internal.agentCommitInternal.finishSync, {
+          ownerId: 'peek|owner',
+          connectionId,
+          runId: 'run-1',
+          headSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        }),
+      ).resolves.toBe(false)
+      await expect(
+        owner.mutation(internal.agentCommitInternal.finishSync, {
+          ownerId: 'peek|owner',
+          connectionId,
+          runId: 'run-2',
+          headSha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        }),
+      ).resolves.toBe(true)
+
+      const [target] = await owner.query(
+        internal.codeConnectionInternal.listResolutionTargets,
+        { ownerId: 'peek|owner', projectId },
+      )
+      expect(target?.lastSyncedHeadSha).toBe(
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      )
+    } finally {
+      clock.mockRestore()
+    }
   })
 })
 
@@ -558,10 +673,17 @@ describe('Check and Agent ledgers', () => {
       attentionCount: 1,
       unavailableCount: 0,
     })
+    await owner.mutation(internal.codeConnectionInternal.claimCommitSync, {
+      ownerId: 'peek|owner',
+      projectId,
+      connectionId,
+      runId: 'fixture-sync',
+    })
     await owner.mutation(internal.agentCommitInternal.upsertPage, {
       ownerId: 'peek|owner',
       projectId,
       connectionId,
+      runId: 'fixture-sync',
       commits: [
         {
           sha: '0123456789abcdef0123456789abcdef01234567',
