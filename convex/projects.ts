@@ -11,6 +11,9 @@ import { projectValidator } from './lib/validators'
 
 const ACTIVE = 'active' as const
 const CASCADE_LIMIT = 100
+const DEFAULT_COLLECTION_INTERVAL_MINUTES = 15
+const MAX_COLLECTION_INTERVAL_MINUTES = 1_440
+const MINUTE_MS = 60_000
 
 export const listByClient = query({
   args: { clientId: v.id('clients') },
@@ -27,7 +30,19 @@ export const listByClient = query({
         q.eq('clientId', args.clientId).eq('status', ACTIVE),
       )
       .take(100)
-    return projects.map(({ ownerId: _ownerId, normalizedName: _normalizedName, status: _status, ...project }) => project)
+    return projects.map(
+      ({
+        ownerId: _ownerId,
+        normalizedName: _normalizedName,
+        status: _status,
+        collectionScheduleInitialized: _collectionScheduleInitialized,
+        ...project
+      }) => ({
+        ...project,
+        collectionIntervalMinutes:
+          project.collectionIntervalMinutes ?? DEFAULT_COLLECTION_INTERVAL_MINUTES,
+      }),
+    )
   },
 })
 
@@ -49,15 +64,76 @@ export const create = mutation({
       .unique()
     if (duplicate) throw new Error('A project with this name already exists')
     const now = Date.now()
-    return await ctx.db.insert('projects', {
+    const projectId = await ctx.db.insert('projects', {
       clientId: args.clientId,
       ownerId,
       name,
       normalizedName,
+      collectionIntervalMinutes: DEFAULT_COLLECTION_INTERVAL_MINUTES,
+      collectionScheduleInitialized: true,
       status: ACTIVE,
       createdAt: now,
       updatedAt: now,
     })
+    await ctx.db.insert('projectCollectionSchedules', {
+      projectId,
+      ownerId,
+      nextCollectionAt: now + DEFAULT_COLLECTION_INTERVAL_MINUTES * MINUTE_MS,
+      updatedAt: now,
+    })
+    return projectId
+  },
+})
+
+export const updateCollectionInterval = mutation({
+  args: {
+    projectId: v.id('projects'),
+    intervalMinutes: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const ownerId = await requireOwner(ctx)
+    const project = await requireActiveProjectForOwner(ctx, ownerId, args.projectId)
+    if (!Number.isInteger(args.intervalMinutes)) {
+      throw new Error('Collection interval must be a whole number')
+    }
+    if (
+      args.intervalMinutes < 1 ||
+      args.intervalMinutes > MAX_COLLECTION_INTERVAL_MINUTES
+    ) {
+      throw new Error(
+        `Collection interval must be between 1 and ${MAX_COLLECTION_INTERVAL_MINUTES} minutes`,
+      )
+    }
+    const now = Date.now()
+    await ctx.db.patch(args.projectId, {
+      collectionIntervalMinutes: args.intervalMinutes,
+      collectionScheduleInitialized: true,
+      updatedAt: now,
+    })
+    const schedule = await ctx.db
+      .query('projectCollectionSchedules')
+      .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
+      .unique()
+    const nextCollectionAt = now + args.intervalMinutes * MINUTE_MS
+    if (schedule) {
+      await ctx.db.patch(schedule._id, {
+        ownerId: project.ownerId,
+        nextCollectionAt,
+        runId: undefined,
+        runStartedAt: undefined,
+        leaseExpiresAt: undefined,
+        updatedAt: now,
+      })
+    } else {
+      await ctx.db.insert('projectCollectionSchedules', {
+        projectId: project._id,
+        ownerId: project.ownerId,
+        nextCollectionAt,
+        updatedAt: now,
+      })
+    }
+    return null
   },
 })
 
@@ -90,7 +166,7 @@ export const remove = mutation({
     await requireActiveProjectForOwner(ctx, ownerId, args.projectId)
     const now = Date.now()
     await ctx.db.patch(args.projectId, { status: 'deleted', updatedAt: now })
-    const [services, codeConnections, agentToken, agentEndpoint] = await Promise.all([
+    const [services, codeConnections, agentToken, agentEndpoint, schedule] = await Promise.all([
       ctx.db
         .query('serviceConnections')
         .withIndex('by_project_and_status', (q) =>
@@ -109,6 +185,10 @@ export const remove = mutation({
         .unique(),
       ctx.db
         .query('agentEndpoints')
+        .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
+        .unique(),
+      ctx.db
+        .query('projectCollectionSchedules')
         .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
         .unique(),
     ])
@@ -132,6 +212,7 @@ export const remove = mutation({
     }
     if (agentToken?.ownerId === ownerId) await ctx.db.delete(agentToken._id)
     if (agentEndpoint?.ownerId === ownerId) await ctx.db.delete(agentEndpoint._id)
+    if (schedule?.ownerId === ownerId) await ctx.db.delete(schedule._id)
     await ctx.scheduler.runAfter(0, internal.cleanup.deletedProject, {
       ownerId,
       projectId: args.projectId,

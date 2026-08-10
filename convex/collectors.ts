@@ -6,6 +6,7 @@ import { action, env, internalAction, type ActionCtx } from './_generated/server
 import { requireOwner } from './lib/domain'
 import {
   foldScheduledPage,
+  scheduledCheckAggregateValidator,
   type ScheduledCheckAggregate,
 } from './lib/checkTriggers'
 import { collectProvider, providerErrorCode, unavailableSnapshot } from './lib/providers'
@@ -26,17 +27,6 @@ const collectionResultValidator = v.object({
   serviceId: v.id('serviceConnections'),
   provider: providerValidator,
   stored: v.boolean(),
-})
-
-const scheduledAggregateValidator = v.object({
-  projectId: v.id('projects'),
-  ownerId: v.string(),
-  triggeredAt: v.number(),
-  completedAt: v.number(),
-  serviceCount: v.number(),
-  operationalCount: v.number(),
-  attentionCount: v.number(),
-  unavailableCount: v.number(),
 })
 
 function encryptionKeys() {
@@ -111,8 +101,11 @@ async function collectInBatches(
   return results
 }
 
-async function collectProject(ctx: ActionCtx, targets: CollectionTarget[]) {
-  const triggeredAt = Date.now()
+async function collectProject(
+  ctx: ActionCtx,
+  targets: CollectionTarget[],
+  triggeredAt = Date.now(),
+) {
   const results: Awaited<ReturnType<typeof collectTarget>>[] = []
   for (let index = 0; index < targets.length; index += 5) {
     results.push(
@@ -157,42 +150,60 @@ export const refreshNow = action({
   },
 })
 
-export const collectScheduledPage = internalAction({
+export const collectScheduledProjectPage = internalAction({
   args: {
+    projectId: v.id('projects'),
     cursor: v.union(v.null(), v.string()),
-    pending: v.optional(scheduledAggregateValidator),
+    ownerId: v.string(),
+    pending: v.optional(scheduledCheckAggregateValidator),
+    runId: v.string(),
+    triggeredAt: v.number(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const active = await ctx.runMutation(
+      internal.collectorInternal.heartbeatScheduledProjectRun,
+      {
+        projectId: args.projectId,
+        runId: args.runId,
+        triggeredAt: args.triggeredAt,
+      },
+    )
+    if (!active) return null
     const page: {
       page: CollectionTarget[]
       isDone: boolean
       continueCursor: string
-    } = await ctx.runQuery(internal.serviceInternal.listCollectionTargetsPage, {
-      paginationOpts: { cursor: args.cursor, numItems: 25 },
-    })
-    const projectIds = [...new Set(page.page.map((target) => target.projectId))]
-    const aggregates: ScheduledCheckAggregate<Id<'projects'>>[] = []
-    for (const projectId of projectIds) {
-      const { aggregate } = await collectProject(
-        ctx,
-        page.page.filter((target) => target.projectId === projectId),
-      )
-      if (aggregate) aggregates.push(aggregate)
-    }
-    const folded = foldScheduledPage(args.pending ?? null, aggregates, page.isDone)
-    for (const aggregate of folded.completed) {
-      await ctx.runMutation(internal.checkTriggers.record, {
-        source: 'scheduled',
-        ...aggregate,
-      })
-    }
-    if (!page.isDone) {
-      await ctx.scheduler.runAfter(0, internal.collectors.collectScheduledPage, {
-        cursor: page.continueCursor,
-        pending: folded.pending ?? undefined,
-      })
-    }
+    } = await ctx.runQuery(
+      internal.serviceInternal.listCollectionTargetsForProjectPage,
+      {
+        ownerId: args.ownerId,
+        projectId: args.projectId,
+        paginationOpts: { cursor: args.cursor, numItems: 25 },
+      },
+    )
+    const { aggregate } = await collectProject(
+      ctx,
+      page.page,
+      args.triggeredAt,
+    )
+    const folded = foldScheduledPage(
+      args.pending ?? null,
+      aggregate ? [aggregate] : [],
+      page.isDone,
+    )
+    await ctx.runMutation(
+      internal.collectorInternal.advanceScheduledProjectRun,
+      {
+      projectId: args.projectId,
+      runId: args.runId,
+      completed: folded.completed,
+      ...(folded.pending ? { pending: folded.pending } : {}),
+      isDone: page.isDone,
+      continueCursor: page.continueCursor,
+      triggeredAt: args.triggeredAt,
+      },
+    )
     return null
   },
 })

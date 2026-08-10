@@ -39,6 +39,14 @@ Service metrics. A Check trigger records when collection started and finished,
 its source, and aggregate Service outcomes. The Checks page shows this ledger;
 new triggers never replace earlier entries.
 
+## Collection interval
+
+The whole-number period, in minutes, between scheduled collection starts for
+one Project. Each Project defaults to 15 minutes and may be configured from 1
+through 1,440 minutes. A new interval applies from the time it is saved.
+Scheduled collection never overlaps for the same Project; provider work or
+retries may delay a run beyond its configured interval.
+
 ## Main commit
 
 A commit reachable from the connected GitHub repository's `main` branch and

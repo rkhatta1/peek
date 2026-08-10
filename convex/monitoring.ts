@@ -58,7 +58,20 @@ export const getOverview = query({
         return { connection, latest: history[0] ?? null, history: history.reverse() }
       }),
     )
-    const { ownerId: _ownerId, normalizedName: _normalizedName, status: _status, ...publicProject } = project
-    return { project: publicProject, providers }
+    const {
+      ownerId: _ownerId,
+      normalizedName: _normalizedName,
+      status: _status,
+      collectionScheduleInitialized: _collectionScheduleInitialized,
+      ...publicProject
+    } = project
+    return {
+      project: {
+        ...publicProject,
+        collectionIntervalMinutes:
+          publicProject.collectionIntervalMinutes ?? 15,
+      },
+      providers,
+    }
   },
 })

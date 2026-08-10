@@ -45,6 +45,8 @@ export default defineSchema({
     ownerId: v.string(),
     name: v.string(),
     normalizedName: v.string(),
+    collectionIntervalMinutes: v.optional(v.number()),
+    collectionScheduleInitialized: v.optional(v.boolean()),
     status: lifecycleStatusValidator,
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -54,6 +56,10 @@ export default defineSchema({
       'clientId',
       'normalizedName',
       'status',
+    ])
+    .index('by_status_and_collectionScheduleInitialized', [
+      'status',
+      'collectionScheduleInitialized',
     ]),
 
   serviceConnections: defineTable({
@@ -116,6 +122,18 @@ export default defineSchema({
     .index('by_service_and_capturedAt', ['serviceId', 'capturedAt'])
     .index('by_client', ['clientId'])
     .index('by_project', ['projectId']),
+
+  projectCollectionSchedules: defineTable({
+    projectId: v.id('projects'),
+    ownerId: v.string(),
+    nextCollectionAt: v.number(),
+    runId: v.optional(v.string()),
+    runStartedAt: v.optional(v.number()),
+    leaseExpiresAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index('by_project', ['projectId'])
+    .index('by_nextCollectionAt', ['nextCollectionAt']),
 
   checkTriggers: defineTable({
     clientId: v.id('clients'),

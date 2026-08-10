@@ -82,6 +82,7 @@ export const projectValidator = v.object({
   _creationTime: v.number(),
   clientId: v.id('clients'),
   name: v.string(),
+  collectionIntervalMinutes: v.number(),
   createdAt: v.number(),
   updatedAt: v.number(),
 })

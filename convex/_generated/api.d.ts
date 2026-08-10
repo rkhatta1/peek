@@ -23,6 +23,7 @@ import type * as clients from "../clients.js";
 import type * as codeConnectionActions from "../codeConnectionActions.js";
 import type * as codeConnectionInternal from "../codeConnectionInternal.js";
 import type * as codeConnections from "../codeConnections.js";
+import type * as collectorInternal from "../collectorInternal.js";
 import type * as collectors from "../collectors.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
@@ -65,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   codeConnectionActions: typeof codeConnectionActions;
   codeConnectionInternal: typeof codeConnectionInternal;
   codeConnections: typeof codeConnections;
+  collectorInternal: typeof collectorInternal;
   collectors: typeof collectors;
   crons: typeof crons;
   http: typeof http;

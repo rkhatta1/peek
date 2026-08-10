@@ -42,6 +42,42 @@ describe('Client → Project → Service', () => {
     ])
   })
 
+  test('lets the Project owner configure a whole-minute collection interval', async () => {
+    const t = testBackend()
+    const owner = t.withIdentity({ tokenIdentifier: 'peek|owner' })
+    const stranger = t.withIdentity({ tokenIdentifier: 'peek|stranger' })
+    const clientId = await owner.mutation(api.clients.create, { name: 'Acme' })
+    const projectId = await owner.mutation(api.projects.create, {
+      clientId,
+      name: 'Atlas',
+    })
+
+    expect(await owner.query(api.projects.listByClient, { clientId })).toMatchObject([
+      { collectionIntervalMinutes: 15 },
+    ])
+
+    await owner.mutation(api.projects.updateCollectionInterval, {
+      projectId,
+      intervalMinutes: 5,
+    })
+
+    expect(await owner.query(api.projects.listByClient, { clientId })).toMatchObject([
+      { collectionIntervalMinutes: 5 },
+    ])
+    await expect(
+      stranger.mutation(api.projects.updateCollectionInterval, {
+        projectId,
+        intervalMinutes: 10,
+      }),
+    ).rejects.toThrow('Project not found')
+    await expect(
+      owner.mutation(api.projects.updateCollectionInterval, {
+        projectId,
+        intervalMinutes: 1.5,
+      }),
+    ).rejects.toThrow('Collection interval must be a whole number')
+  })
+
   test('never returns encrypted credentials from public service queries', async () => {
     const t = testBackend()
     const owner = t.withIdentity({ tokenIdentifier: 'peek|owner' })

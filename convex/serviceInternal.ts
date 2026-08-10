@@ -42,13 +42,10 @@ const collectionTargetValidator = v.object({
   encryptedCredentials: encryptedCredentialsValidator,
 })
 
-async function collectionTarget(ctx: QueryCtx, service: Doc<'serviceConnections'>) {
-  const project = await activeProjectForOwner(
-    ctx,
-    service.ownerId,
-    service.projectId,
-  )
-  if (!project) return null
+async function collectionTargetForActiveProject(
+  ctx: QueryCtx,
+  service: Doc<'serviceConnections'>,
+) {
   const credentials = await ctx.db
     .query('serviceCredentials')
     .withIndex('by_service', (q) => q.eq('serviceId', service._id))
@@ -120,23 +117,37 @@ export const listCollectionTargetsForProject = internalQuery({
       )
       .take(20)
     const targets = await Promise.all(
-      services.filter((service) => service.active).map((service) => collectionTarget(ctx, service)),
+      services
+        .filter((service) => service.active)
+        .map((service) => collectionTargetForActiveProject(ctx, service)),
     )
     return targets.filter((target) => target !== null)
   },
 })
 
-export const listCollectionTargetsPage = internalQuery({
-  args: { paginationOpts: paginationOptsValidator },
+export const listCollectionTargetsForProjectPage = internalQuery({
+  args: {
+    ownerId: v.string(),
+    projectId: v.id('projects'),
+    paginationOpts: paginationOptsValidator,
+  },
   returns: paginationResultValidator(collectionTargetValidator),
   handler: async (ctx, args) => {
+    await requireActiveProjectForOwner(ctx, args.ownerId, args.projectId)
     const page = await ctx.db
       .query('serviceConnections')
       .withIndex('by_active_and_status_and_project', (q) =>
-        q.eq('active', true).eq('status', ACTIVE),
+        q
+          .eq('active', true)
+          .eq('status', ACTIVE)
+          .eq('projectId', args.projectId),
       )
       .paginate(args.paginationOpts)
-    const targets = await Promise.all(page.page.map((service) => collectionTarget(ctx, service)))
+    const targets = await Promise.all(
+      page.page.map((service) =>
+        collectionTargetForActiveProject(ctx, service),
+      ),
+    )
     return { ...page, page: targets.filter((target) => target !== null) }
   },
 })

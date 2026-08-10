@@ -21,6 +21,13 @@ import {
   DialogTitle,
 } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from '#/components/ui/field'
 import { Label } from '#/components/ui/label'
 import { Separator } from '#/components/ui/separator'
 import { Switch } from '#/components/ui/switch'
@@ -40,7 +47,12 @@ export function SettingsPage() {
   const { theme, setTheme } = useTheme()
   const [clientName, setClientName] = useState(selectedClient?.name ?? '')
   const [projectName, setProjectName] = useState(selectedProject?.name ?? '')
+  const [collectionInterval, setCollectionInterval] = useState(
+    String(selectedProject?.collectionIntervalMinutes ?? 15),
+  )
   const [saving, setSaving] = useState<'client' | 'project' | null>(null)
+  const [intervalSaving, setIntervalSaving] = useState(false)
+  const [intervalError, setIntervalError] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<'client' | 'project' | null>(
     null,
@@ -52,6 +64,9 @@ export function SettingsPage() {
   )
   const rotateAgentToken = useAction(api.agentApiActions.rotateToken)
   const revokeAgentToken = useMutation(api.agentApi.revokeToken)
+  const updateCollectionInterval = useMutation(
+    api.projects.updateCollectionInterval,
+  )
   const [agentSaving, setAgentSaving] = useState<'token' | 'revoke' | null>(null)
   const [agentError, setAgentError] = useState('')
   const [newAgentToken, setNewAgentToken] = useState('')
@@ -59,6 +74,12 @@ export function SettingsPage() {
 
   useEffect(() => setClientName(selectedClient?.name ?? ''), [selectedClient])
   useEffect(() => setProjectName(selectedProject?.name ?? ''), [selectedProject])
+  useEffect(() => {
+    setCollectionInterval(
+      String(selectedProject?.collectionIntervalMinutes ?? 15),
+    )
+    setIntervalError('')
+  }, [selectedProject])
   useEffect(() => {
     setNewAgentToken('')
     setCopied(false)
@@ -89,6 +110,32 @@ export function SettingsPage() {
       setError(errorMessage(cause))
     } finally {
       setSaving(null)
+    }
+  }
+
+  async function saveCollectionInterval(event: FormEvent) {
+    event.preventDefault()
+    if (!selectedProject) return
+    const intervalMinutes = Number(collectionInterval)
+    if (
+      !Number.isInteger(intervalMinutes) ||
+      intervalMinutes < 1 ||
+      intervalMinutes > 1_440
+    ) {
+      setIntervalError('Enter a whole number from 1 to 1,440.')
+      return
+    }
+    setIntervalSaving(true)
+    setIntervalError('')
+    try {
+      await updateCollectionInterval({
+        projectId: selectedProject._id,
+        intervalMinutes,
+      })
+    } catch (cause) {
+      setIntervalError(errorMessage(cause))
+    } finally {
+      setIntervalSaving(false)
     }
   }
 
@@ -327,7 +374,7 @@ export function SettingsPage() {
           <CardHeader>
             <CardTitle className="text-sm">Preferences</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="flex flex-col gap-5">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <Label htmlFor="dark-mode">Dark mode</Label>
@@ -342,17 +389,53 @@ export function SettingsPage() {
               />
             </div>
             <Separator />
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium">Collection interval</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Every 15 minutes
-                </p>
-              </div>
-              <Button disabled size="sm" variant="outline">
-                Managed
-              </Button>
-            </div>
+            <form onSubmit={saveCollectionInterval}>
+              <Field
+                data-invalid={Boolean(intervalError)}
+                orientation="responsive"
+              >
+                <FieldContent>
+                  <FieldLabel htmlFor="collection-interval">
+                    Collection interval
+                  </FieldLabel>
+                  <FieldDescription>
+                    Minutes between scheduled collections for this Project.
+                  </FieldDescription>
+                  <FieldError>{intervalError}</FieldError>
+                </FieldContent>
+                <div className="flex items-center gap-2">
+                  <Input
+                    aria-invalid={Boolean(intervalError)}
+                    className="w-28"
+                    disabled={!selectedProject || intervalSaving}
+                    id="collection-interval"
+                    inputMode="numeric"
+                    max={1_440}
+                    min={1}
+                    onChange={(event) => setCollectionInterval(event.target.value)}
+                    step={1}
+                    type="number"
+                    value={collectionInterval}
+                  />
+                  <Button
+                    disabled={
+                      !selectedProject ||
+                      intervalSaving ||
+                      !Number.isInteger(Number(collectionInterval)) ||
+                      Number(collectionInterval) < 1 ||
+                      Number(collectionInterval) > 1_440 ||
+                      Number(collectionInterval) ===
+                        selectedProject.collectionIntervalMinutes
+                    }
+                    size="sm"
+                    type="submit"
+                    variant="outline"
+                  >
+                    {intervalSaving ? 'Saving…' : 'Save'}
+                  </Button>
+                </div>
+              </Field>
+            </form>
           </CardContent>
         </Card>
       </div>

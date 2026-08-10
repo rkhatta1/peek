@@ -1,3 +1,5 @@
+import { v } from 'convex/values'
+
 import type { Id } from '../_generated/dataModel'
 import type { MutationCtx } from '../_generated/server'
 import { requireActiveProjectForOwner } from './domain'
@@ -15,6 +17,17 @@ export type ScheduledCheckAggregate<ProjectId = Id<'projects'>> = {
   attentionCount: number
   unavailableCount: number
 }
+
+export const scheduledCheckAggregateValidator = v.object({
+  projectId: v.id('projects'),
+  ownerId: v.string(),
+  triggeredAt: v.number(),
+  completedAt: v.number(),
+  serviceCount: v.number(),
+  operationalCount: v.number(),
+  attentionCount: v.number(),
+  unavailableCount: v.number(),
+})
 
 export function foldScheduledPage<ProjectId>(
   pending: ScheduledCheckAggregate<ProjectId> | null,
