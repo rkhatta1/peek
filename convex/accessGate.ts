@@ -12,6 +12,8 @@ const GATE_KEY = 'development'
 const ATTEMPT_WINDOW_MS = 60_000
 const ATTEMPT_LIMIT = 10
 const ACCESS_TTL_MS = 12 * 60 * 60 * 1_000
+const ACCESS_CODE_MIN_LENGTH = 6
+const ACCESS_CODE_MAX_LENGTH = 12
 
 export const seedDevelopmentAccessCode = internalMutation({
   args: {},
@@ -33,6 +35,29 @@ export const seedDevelopmentAccessCode = internalMutation({
   },
 })
 
+export const provisionAccessCode = internalMutation({
+  args: {},
+  returns: v.object({ created: v.boolean() }),
+  handler: async (ctx) => {
+    const codeHash = await hashAccessCode(requireAccessCode(), requireSecret())
+    const existing = await ctx.db
+      .query('accessGateSettings')
+      .withIndex('by_key', (q) => q.eq('key', GATE_KEY))
+      .unique()
+    const settings = {
+      key: GATE_KEY,
+      codeHash,
+      updatedAt: Date.now(),
+    }
+    if (existing) {
+      await ctx.db.replace('accessGateSettings', existing._id, settings)
+      return { created: false }
+    }
+    await ctx.db.insert('accessGateSettings', settings)
+    return { created: true }
+  },
+})
+
 export const verifyAccessCode = mutation({
   args: { code: v.string() },
   returns: v.union(
@@ -41,7 +66,12 @@ export const verifyAccessCode = mutation({
   ),
   handler: async (ctx, args) => {
     const code = args.code.trim()
-    if (!code || code.length > 200) return { ok: false as const }
+    if (
+      code.length < ACCESS_CODE_MIN_LENGTH ||
+      code.length > ACCESS_CODE_MAX_LENGTH
+    ) {
+      return { ok: false as const }
+    }
     const settings = await ctx.db
       .query('accessGateSettings')
       .withIndex('by_key', (q) => q.eq('key', GATE_KEY))
@@ -90,8 +120,12 @@ function requireSecret() {
 
 function requireAccessCode() {
   const code = process.env.PEEK_ACCESS_CODE?.trim()
-  if (!code || code.length < 10 || code.length > 200) {
-    throw new Error('PEEK_ACCESS_CODE must contain 10 to 200 characters')
+  if (
+    !code ||
+    code.length < ACCESS_CODE_MIN_LENGTH ||
+    code.length > ACCESS_CODE_MAX_LENGTH
+  ) {
+    throw new Error('PEEK_ACCESS_CODE must contain 6 to 12 characters')
   }
   return code
 }
