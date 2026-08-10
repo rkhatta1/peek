@@ -49,12 +49,15 @@ export function requiresAccessGate(request: Request) {
   )
 }
 
-export function forwardAccessGrant(request: Request, production: boolean) {
+export function forwardAccessGrantHeaders(
+  request: Request,
+  production: boolean,
+) {
   const token = readAccessToken(request, production)
   if (!token) return null
   const headers = new Headers(request.headers)
   headers.set(ACCESS_GRANT_HEADER, token)
-  return new Request(request, { headers })
+  return headers
 }
 
 export function isSameOrigin(request: Request) {

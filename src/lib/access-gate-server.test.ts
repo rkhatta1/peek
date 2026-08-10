@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 
 import {
   accessCookie,
-  forwardAccessGrant,
+  forwardAccessGrantHeaders,
   readAccessToken,
   requiresAccessGate,
 } from './access-gate-server'
@@ -48,10 +48,10 @@ describe('access gate server boundary', () => {
     })
 
     expect(
-      forwardAccessGrant(request, false)?.headers.get('x-peek-access-grant'),
+      forwardAccessGrantHeaders(request, false)?.get('x-peek-access-grant'),
     ).toBe('signed-token')
     expect(
-      forwardAccessGrant(
+      forwardAccessGrantHeaders(
         new Request('http://localhost:3000/api/auth/sign-in/email', {
           method: 'POST',
         }),
