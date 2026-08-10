@@ -11,23 +11,30 @@ import type { FunctionReturnType } from 'convex/server'
 
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
-import { evaluateSnapshot } from '../../../convex/lib/monitoring'
+import {
+  collectionFreshnessLimitMs,
+  evaluateSnapshot,
+} from '../../../convex/lib/monitoring'
 
 export type Client = FunctionReturnType<typeof api.clients.list>[number]
 export type Project = FunctionReturnType<
   typeof api.projects.listByClient
 >[number]
-export type Overview = NonNullable<
-  FunctionReturnType<typeof api.monitoring.getOverview>
+export type MonitoringSummary = NonNullable<
+  FunctionReturnType<typeof api.monitoring.getSummary>
 >
+export type ServiceHistory = FunctionReturnType<
+  typeof api.monitoring.getHistory
+>[number]
 export type CodeConnection = FunctionReturnType<
   typeof api.codeConnections.listByProject
 >[number]
 export type CodeAttribution = FunctionReturnType<
   typeof api.codeConnectionActions.resolveAttribution
 >
-type OverviewProvider = Overview['providers'][number]
-export type ProviderItem = OverviewProvider & {
+type SummaryProvider = MonitoringSummary['providers'][number]
+export type ProviderItem = SummaryProvider & {
+  history: ServiceHistory['history']
   evaluation: ReturnType<typeof evaluateSnapshot> | null
 }
 
@@ -47,7 +54,7 @@ export type CodeConnectionConfiguration =
 type MonitoringContextValue = {
   clients: Client[]
   projects: Project[]
-  overview: Overview | null
+  overview: MonitoringSummary | null
   providers: ProviderItem[]
   codeConnections: CodeConnection[]
   selectedClient: Client | null
@@ -116,8 +123,8 @@ export function MonitoringProvider({ children }: { children: ReactNode }) {
     projects?.find((project) => project._id === requestedProjectId) ??
     projects?.[0] ??
     null
-  const rawOverview = useQuery(
-    api.monitoring.getOverview,
+  const rawSummary = useQuery(
+    api.monitoring.getSummary,
     isAuthenticated && selectedProject
       ? { projectId: selectedProject._id }
       : 'skip',
@@ -193,9 +200,9 @@ export function MonitoringProvider({ children }: { children: ReactNode }) {
   ).withOptimisticUpdate((store, args) => {
     if (!selectedProject) return
     const queryArgs = { projectId: selectedProject._id }
-    const current = store.getQuery(api.monitoring.getOverview, queryArgs)
+    const current = store.getQuery(api.monitoring.getSummary, queryArgs)
     if (!current) return
-    store.setQuery(api.monitoring.getOverview, queryArgs, {
+    store.setQuery(api.monitoring.getSummary, queryArgs, {
       ...current,
       providers: current.providers.map((item) =>
         item.connection._id === args.serviceId
@@ -218,9 +225,9 @@ export function MonitoringProvider({ children }: { children: ReactNode }) {
   ).withOptimisticUpdate((store, args) => {
     if (!selectedProject) return
     const queryArgs = { projectId: selectedProject._id }
-    const current = store.getQuery(api.monitoring.getOverview, queryArgs)
+    const current = store.getQuery(api.monitoring.getSummary, queryArgs)
     if (!current) return
-    store.setQuery(api.monitoring.getOverview, queryArgs, {
+    store.setQuery(api.monitoring.getSummary, queryArgs, {
       ...current,
       providers: current.providers.filter(
         (item) => item.connection._id !== args.serviceId,
@@ -245,10 +252,14 @@ export function MonitoringProvider({ children }: { children: ReactNode }) {
     api.codeConnectionActions.resolveAttribution,
   )
   const refreshNow = useAction(api.collectors.refreshNow)
-  const [refreshing, setRefreshing] = useState(false)
-  const [optimisticCheckedAt, setOptimisticCheckedAt] = useState<number | null>(
-    null,
-  )
+  const [projectRefreshState, setProjectRefreshState] = useState<
+    Partial<
+      Record<
+        Id<'projects'>,
+        { checkedAt: number | null; refreshing: boolean }
+      >
+    >
+  >({})
 
   const setSelectedClientId = useCallback((clientId: Id<'clients'>) => {
     setRequestedClientId(clientId)
@@ -257,20 +268,28 @@ export function MonitoringProvider({ children }: { children: ReactNode }) {
 
   const providers = useMemo(
     () =>
-      (rawOverview?.providers ?? []).map((item) => ({
+      (rawSummary?.providers ?? []).map((item) => ({
         ...item,
+        history: [],
         evaluation: item.latest
           ? evaluateSnapshot(toEvaluatableSnapshot(item.latest), {
               now: Date.now(),
+              staleAfterMs: collectionFreshnessLimitMs(
+                rawSummary?.project.collectionIntervalMinutes ?? 15,
+              ),
             })
           : null,
       })),
-    [rawOverview],
+    [rawSummary],
   )
 
+  const selectedProjectRefreshState = selectedProject
+    ? projectRefreshState[selectedProject._id]
+    : undefined
   const checkedAt =
-    optimisticCheckedAt ??
+    selectedProjectRefreshState?.checkedAt ??
     Math.max(0, ...providers.map((item) => item.latest?.capturedAt ?? 0))
+  const refreshing = selectedProjectRefreshState?.refreshing ?? false
 
   const createClient = useCallback(
     async (name: string) => {
@@ -294,12 +313,29 @@ export function MonitoringProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (!selectedProject) return
-    setRefreshing(true)
-    setOptimisticCheckedAt(Date.now())
+    const projectId = selectedProject._id
+    setProjectRefreshState((current) => ({
+      ...current,
+      [projectId]: {
+        checkedAt: current[projectId]?.checkedAt ?? null,
+        refreshing: true,
+      },
+    }))
     try {
-      await refreshNow({ projectId: selectedProject._id })
+      await refreshNow({ projectId })
+      setProjectRefreshState((current) => ({
+        ...current,
+        [projectId]: { checkedAt: Date.now(), refreshing: false },
+      }))
     } finally {
-      setRefreshing(false)
+      setProjectRefreshState((current) => {
+        const projectState = current[projectId]
+        if (!projectState?.refreshing) return current
+        return {
+          ...current,
+          [projectId]: { ...projectState, refreshing: false },
+        }
+      })
     }
   }, [refreshNow, selectedProject])
 
@@ -310,7 +346,7 @@ export function MonitoringProvider({ children }: { children: ReactNode }) {
       value={{
         clients,
         projects: projects ?? [],
-        overview: rawOverview ?? null,
+        overview: rawSummary ?? null,
         providers,
         codeConnections: codeConnections ?? [],
         selectedClient,
@@ -366,7 +402,7 @@ export function useMonitoring() {
   return context
 }
 
-function toEvaluatableSnapshot(snapshot: OverviewProvider['latest'] & {}) {
+function toEvaluatableSnapshot(snapshot: SummaryProvider['latest'] & {}) {
   if (snapshot.provider === 'neon') {
     return {
       provider: 'neon' as const,

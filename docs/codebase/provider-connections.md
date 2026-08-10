@@ -89,8 +89,10 @@ Services. Each Project supports one active connection per code provider.
   cursor chain. Each page atomically schedules its continuation; the final page
   publishes one Project Check and schedules the next run. Interval changes
   reset the due time and fence stale continuations.
-- Overview reads are bounded to 20 Services and 96 indexed snapshots per
-  Service.
+- The app-wide monitoring summary is bounded to 20 Services and reads only the
+  latest indexed snapshot per Service. The Overview route separately subscribes
+  to at most 96 indexed snapshots per Service for charts; other routes do not
+  read history.
 - Each Project collection writes one immutable Check trigger with aggregate
   outcomes. Checks and Agent ledgers use Convex cursor pagination; denormalized
   Project counters provide exact table totals without scanning either ledger.

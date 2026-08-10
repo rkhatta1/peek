@@ -1,6 +1,7 @@
 import { v } from 'convex/values'
 
-import { query } from './_generated/server'
+import { query, type QueryCtx } from './_generated/server'
+import type { Doc, Id } from './_generated/dataModel'
 import { requireActiveProjectForOwner, requireOwner } from './lib/domain'
 import { projectValidator, providerValidator, rawStatusValidator, serviceValidator } from './lib/validators'
 
@@ -26,52 +27,112 @@ const snapshotValidator = v.object({
   errorCode: v.optional(v.string()),
 })
 
-export const getOverview = query({
+const summaryProviderValidator = v.object({
+  connection: serviceValidator,
+  latest: v.union(v.null(), snapshotValidator),
+})
+
+const serviceHistoryValidator = v.object({
+  serviceId: v.id('serviceConnections'),
+  history: v.array(snapshotValidator),
+})
+
+export const getSummary = query({
   args: { projectId: v.id('projects') },
   returns: v.object({
     project: projectValidator,
-    providers: v.array(
-      v.object({
-        connection: serviceValidator,
-        latest: v.union(v.null(), snapshotValidator),
-        history: v.array(snapshotValidator),
-      }),
-    ),
+    providers: v.array(summaryProviderValidator),
   }),
   handler: async (ctx, args) => {
     const ownerId = await requireOwner(ctx)
-    const project = await requireActiveProjectForOwner(ctx, ownerId, args.projectId)
-    const services = await ctx.db
-      .query('serviceConnections')
-      .withIndex('by_project_and_status', (q) =>
-        q.eq('projectId', project._id).eq('status', 'active'),
-      )
-      .take(20)
+    const project = await requireActiveProjectForOwner(
+      ctx,
+      ownerId,
+      args.projectId,
+    )
+    const services = await activeServices(ctx, project._id)
     const providers = await Promise.all(
-      services.map(async ({ ownerId: _ownerId, normalizedName: _normalizedName, status: _status, ...connection }) => {
-        const snapshots = await ctx.db
+      services.map(async (service) => {
+        const latest = await ctx.db
           .query('serviceMetricSnapshots')
-          .withIndex('by_service_and_capturedAt', (q) => q.eq('serviceId', connection._id))
+          .withIndex('by_service_and_capturedAt', (q) =>
+            q.eq('serviceId', service._id),
+          )
           .order('desc')
-          .take(HISTORY_LIMIT)
-        const history = snapshots.map(({ ownerId: _snapshotOwnerId, ...snapshot }) => snapshot)
-        return { connection, latest: history[0] ?? null, history: history.reverse() }
+          .first()
+        return {
+          connection: publicService(service),
+          latest: latest ? publicSnapshot(latest) : null,
+        }
       }),
     )
-    const {
-      ownerId: _ownerId,
-      normalizedName: _normalizedName,
-      status: _status,
-      collectionScheduleInitialized: _collectionScheduleInitialized,
-      ...publicProject
-    } = project
-    return {
-      project: {
-        ...publicProject,
-        collectionIntervalMinutes:
-          publicProject.collectionIntervalMinutes ?? 15,
-      },
-      providers,
-    }
+    return { project: publicProject(project), providers }
   },
 })
+
+export const getHistory = query({
+  args: { projectId: v.id('projects') },
+  returns: v.array(serviceHistoryValidator),
+  handler: async (ctx, args) => {
+    const ownerId = await requireOwner(ctx)
+    const project = await requireActiveProjectForOwner(
+      ctx,
+      ownerId,
+      args.projectId,
+    )
+    const services = await activeServices(ctx, project._id)
+    return await Promise.all(
+      services.map(async (service) => {
+        const snapshots = await ctx.db
+          .query('serviceMetricSnapshots')
+          .withIndex('by_service_and_capturedAt', (q) =>
+            q.eq('serviceId', service._id),
+          )
+          .order('desc')
+          .take(HISTORY_LIMIT)
+        return {
+          serviceId: service._id,
+          history: snapshots.map(publicSnapshot).reverse(),
+        }
+      }),
+    )
+  },
+})
+
+async function activeServices(ctx: QueryCtx, projectId: Id<'projects'>) {
+  return await ctx.db
+    .query('serviceConnections')
+    .withIndex('by_project_and_status', (q) =>
+      q.eq('projectId', projectId).eq('status', 'active'),
+    )
+    .take(20)
+}
+
+function publicProject(project: Doc<'projects'>) {
+  const {
+    ownerId: _ownerId,
+    normalizedName: _normalizedName,
+    status: _status,
+    collectionScheduleInitialized: _collectionScheduleInitialized,
+    ...value
+  } = project
+  return {
+    ...value,
+    collectionIntervalMinutes: value.collectionIntervalMinutes ?? 15,
+  }
+}
+
+function publicService(service: Doc<'serviceConnections'>) {
+  const {
+    ownerId: _ownerId,
+    normalizedName: _normalizedName,
+    status: _status,
+    ...value
+  } = service
+  return value
+}
+
+function publicSnapshot(snapshot: Doc<'serviceMetricSnapshots'>) {
+  const { ownerId: _ownerId, ...value } = snapshot
+  return value
+}

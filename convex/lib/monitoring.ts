@@ -39,6 +39,13 @@ export type MonitoringSignal = {
   detail: string
 }
 
+const MINUTE_MS = 60 * 1000
+const COLLECTION_FRESHNESS_GRACE_MINUTES = 5
+
+export function collectionFreshnessLimitMs(intervalMinutes: number) {
+  return (intervalMinutes + COLLECTION_FRESHNESS_GRACE_MINUTES) * MINUTE_MS
+}
+
 type NeonStatsInput = {
   capturedAt: number
   stats: {
@@ -127,7 +134,7 @@ export function evaluateSnapshot(
   options: { now?: number; staleAfterMs?: number } = {},
 ) {
   const now = options.now ?? Date.now()
-  const staleAfterMs = options.staleAfterMs ?? 20 * 60 * 1000
+  const staleAfterMs = options.staleAfterMs ?? collectionFreshnessLimitMs(15)
   const signals: MonitoringSignal[] = []
 
   if (now - snapshot.capturedAt > staleAfterMs) {

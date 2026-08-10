@@ -1,3 +1,5 @@
+import { useMemo } from 'react'
+import { useQuery } from 'convex/react'
 import { Button } from '#/components/ui/button'
 import {
   Empty,
@@ -7,6 +9,7 @@ import {
   EmptyTitle,
 } from '#/components/ui/empty'
 import { Link } from '@tanstack/react-router'
+import { api } from '../../../../convex/_generated/api'
 import { useMonitoring } from '../monitoring-context'
 import { formatTime } from '../monitoring-data'
 import { ChecksTable, ProviderCard } from '../monitoring-panels'
@@ -14,6 +17,19 @@ import { pageTransitionItem } from '../page-transition-item'
 
 export function OverviewPage() {
   const { checkedAt, providers, selectedClient, selectedProject } = useMonitoring()
+  const histories = useQuery(
+    api.monitoring.getHistory,
+    selectedProject ? { projectId: selectedProject._id } : 'skip',
+  )
+  const overviewProviders = useMemo(() => {
+    const historiesByService = new Map(
+      (histories ?? []).map((item) => [item.serviceId, item.history]),
+    )
+    return providers.map((item) => ({
+      ...item,
+      history: historiesByService.get(item.connection._id) ?? [],
+    }))
+  }, [histories, providers])
 
   return (
     <div className="mx-auto w-full max-w-[1480px] p-4 md:p-6 lg:p-8">
@@ -27,10 +43,10 @@ export function OverviewPage() {
         </p>
       </div>
 
-      {providers.length ? (
+      {overviewProviders.length ? (
         <>
           <div className="grid gap-4 xl:grid-cols-2">
-            {providers.map((item, index) => (
+            {overviewProviders.map((item, index) => (
               <ProviderCard
                 {...pageTransitionItem(`overview-provider-${index}`, index + 1)}
                 key={item.connection._id}
@@ -39,11 +55,11 @@ export function OverviewPage() {
             ))}
           </div>
           <section
-            {...pageTransitionItem('overview-checks', providers.length + 1)}
+            {...pageTransitionItem('overview-checks', overviewProviders.length + 1)}
             className="mt-4"
             aria-label="Recent checks"
           >
-            <ChecksTable providers={providers} />
+            <ChecksTable providers={overviewProviders} />
           </section>
         </>
       ) : (

@@ -47,6 +47,10 @@ through 1,440 minutes. A new interval applies from the time it is saved.
 Scheduled collection never overlaps for the same Project; provider work or
 retries may delay a run beyond its configured interval.
 
+A Project's latest provider snapshot remains fresh for its configured interval
+plus a five-minute delivery grace. After that limit, the UI marks the snapshot
+stale until a newer collection arrives.
+
 ## Main commit
 
 A commit reachable from the connected GitHub repository's `main` branch and

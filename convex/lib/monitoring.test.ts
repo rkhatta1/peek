@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  collectionFreshnessLimitMs,
   evaluateSnapshot,
   normalizeNeonPostgresStats,
   normalizeUpstashStats,
@@ -110,5 +111,32 @@ describe('monitoring threshold evaluation', () => {
     expect(result.signals).toContainEqual(
       expect.objectContaining({ code: 'snapshot_stale', severity: 'warning' }),
     )
+  })
+
+  it('derives snapshot freshness from the Project collection interval', () => {
+    const snapshot = {
+      provider: 'upstash' as const,
+      capturedAt: 1_786_000_000_000,
+      status: 'operational' as const,
+      requestCount: 17,
+      storageBytes: 73,
+      connections: 0,
+      p99LatencyMs: 1.4,
+      cacheHitRatio: 0.9,
+    }
+    const staleAfterMs = collectionFreshnessLimitMs(120)
+
+    expect(
+      evaluateSnapshot(snapshot, {
+        now: snapshot.capturedAt + 33 * 60 * 1000,
+        staleAfterMs,
+      }).status,
+    ).toBe('operational')
+    expect(
+      evaluateSnapshot(snapshot, {
+        now: snapshot.capturedAt + 126 * 60 * 1000,
+        staleAfterMs,
+      }).status,
+    ).toBe('stale')
   })
 })

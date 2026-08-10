@@ -78,6 +78,66 @@ describe('Client → Project → Service', () => {
     ).rejects.toThrow('Collection interval must be a whole number')
   })
 
+  test('keeps app-wide monitoring summary latest-only and bounds Overview history', async () => {
+    const t = testBackend()
+    const owner = t.withIdentity({ tokenIdentifier: 'peek|owner' })
+    const stranger = t.withIdentity({ tokenIdentifier: 'peek|stranger' })
+    const clientId = await owner.mutation(api.clients.create, { name: 'Acme' })
+    const projectId = await owner.mutation(api.projects.create, {
+      clientId,
+      name: 'Atlas',
+    })
+    const serviceId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert('serviceConnections', {
+        clientId,
+        projectId,
+        ownerId: 'peek|owner',
+        provider: 'neon',
+        name: 'Primary database',
+        normalizedName: 'primary database',
+        environment: 'Production',
+        active: true,
+        status: 'active',
+        credentialState: 'valid',
+        lastValidatedAt: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      for (let capturedAt = 1; capturedAt <= 100; capturedAt += 1) {
+        await ctx.db.insert('serviceMetricSnapshots', {
+          clientId,
+          projectId,
+          serviceId: id,
+          ownerId: 'peek|owner',
+          provider: 'neon',
+          capturedAt,
+          status: 'operational',
+          connections: capturedAt,
+          cacheHitRatio: 1,
+        })
+      }
+      return id
+    })
+
+    const summary = await owner.query(api.monitoring.getSummary, { projectId })
+    expect(summary.providers).toHaveLength(1)
+    expect(summary.providers[0]).toMatchObject({
+      connection: { _id: serviceId },
+      latest: { capturedAt: 100 },
+    })
+    expect('history' in summary.providers[0]).toBe(false)
+
+    const histories = await owner.query(api.monitoring.getHistory, { projectId })
+    expect(histories).toHaveLength(1)
+    expect(histories[0].serviceId).toBe(serviceId)
+    expect(histories[0].history).toHaveLength(96)
+    expect(histories[0].history[0].capturedAt).toBe(5)
+    expect(histories[0].history[95].capturedAt).toBe(100)
+    await expect(
+      stranger.query(api.monitoring.getHistory, { projectId }),
+    ).rejects.toThrow('Project not found')
+  })
+
   test('never returns encrypted credentials from public service queries', async () => {
     const t = testBackend()
     const owner = t.withIdentity({ tokenIdentifier: 'peek|owner' })
@@ -210,7 +270,10 @@ describe('Client → Project → Service', () => {
       owner.query(api.services.listByProject, { projectId }),
     ).rejects.toThrow('Project not found')
     await expect(
-      owner.query(api.monitoring.getOverview, { projectId }),
+      owner.query(api.monitoring.getSummary, { projectId }),
+    ).rejects.toThrow('Project not found')
+    await expect(
+      owner.query(api.monitoring.getHistory, { projectId }),
     ).rejects.toThrow('Project not found')
   })
 })
