@@ -182,7 +182,7 @@
   view-transition-name: peek-page;
 }
 
-.peek-auth-phase {
+[data-peek-auth-transition] .peek-auth-phase {
   view-transition-name: peek-auth-phase;
 }
 

@@ -14,7 +14,7 @@ import {
   verifyAccessToken,
 } from './lib/accessGateCrypto'
 
-const siteUrl = process.env.SITE_URL ?? 'http://localhost:3000'
+const siteUrl = process.env.SITE_URL ?? 'http://localhost:3004'
 
 export const authComponent = createClient<DataModel>(components.betterAuth)
 

@@ -23,7 +23,7 @@ Better Auth provides email/password sign-up and sign-in. Configure these values
 on the Convex deployment:
 
 ```bash
-pnpm convex env set SITE_URL http://localhost:3000
+pnpm convex env set SITE_URL http://localhost:3004
 pnpm convex env set BETTER_AUTH_SECRET <generated-secret>
 pnpm convex env set PEEK_ACCESS_CODE <managed-development-code>
 openssl rand -base64 32 | pnpm convex env set PEEK_CREDENTIAL_ENCRYPTION_KEY

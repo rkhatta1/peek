@@ -7,7 +7,7 @@ import { AuthScreen } from '#/components/auth/auth-screen'
 import { AppShell } from '#/components/monitoring/app-shell'
 import { Skeleton } from '#/components/ui/skeleton'
 import { authClient } from '#/lib/auth-client'
-import { runViewTransition } from '#/lib/view-transition'
+import { runAuthViewTransition } from '#/lib/view-transition'
 
 export const Route = createFileRoute('/_app')({ component: AuthenticatedLayout })
 
@@ -20,7 +20,7 @@ function AuthenticatedLayout() {
   const [hasAccess, setHasAccess] = useState(initialAccess)
 
   async function refreshSession() {
-    await runViewTransition(async () => {
+    await runAuthViewTransition(async () => {
       await sessionState.refetch()
       await router.invalidate()
     })
@@ -28,11 +28,11 @@ function AuthenticatedLayout() {
 
   async function returnToGate() {
     await fetch('/api/access', { method: 'DELETE' })
-    await runViewTransition(() => setHasAccess(false))
+    await runAuthViewTransition(() => setHasAccess(false))
   }
 
   async function signOut() {
-    await runViewTransition(async () => {
+    await runAuthViewTransition(async () => {
       await authClient.signOut()
       await sessionState.refetch()
       await router.invalidate()
@@ -47,7 +47,7 @@ function AuthenticatedLayout() {
     return (
       <AuthPhase>
         <AccessGate
-          onSuccess={() => runViewTransition(() => setHasAccess(true))}
+          onSuccess={() => runAuthViewTransition(() => setHasAccess(true))}
         />
       </AuthPhase>
     )
