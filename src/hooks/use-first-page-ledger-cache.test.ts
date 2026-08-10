@@ -3,7 +3,9 @@ import { describe, expect, test } from 'vitest'
 import {
   invalidateProjectLedgerCaches,
   ledgerCacheKey,
+  readLedgerValue,
   readLedgerFirstPage,
+  writeLedgerValue,
   writeLedgerFirstPage,
 } from './use-first-page-ledger-cache'
 
@@ -41,5 +43,20 @@ describe('first-page ledger cache', () => {
     expect(storage.getItem(first)).toBeNull()
     expect(storage.getItem(second)).toBeNull()
     expect(storage.getItem(other)).not.toBeNull()
+  })
+
+  test('stores drawer content only for the current server revision', () => {
+    const storage = new MemoryStorage()
+    const key = ledgerCacheKey(
+      'project-1',
+      'check-drawer',
+      'trigger-1:events',
+      1,
+    )
+    const details = { events: [{ id: 'snapshot-1' }], truncated: false }
+    writeLedgerValue(storage, key, 12, details)
+
+    expect(readLedgerValue(storage, key, 12)).toEqual(details)
+    expect(readLedgerValue(storage, key, 13)).toBeUndefined()
   })
 })

@@ -67,6 +67,7 @@ export async function insertCheckTrigger(
   ctx: MutationCtx,
   args: {
     ownerId: string
+    runId?: string
     projectId: Id<'projects'>
     source: CheckTriggerSource
     triggeredAt: number
@@ -104,6 +105,7 @@ export async function insertCheckTrigger(
     clientId: project.clientId,
     projectId: project._id,
     ownerId: args.ownerId,
+    runId: args.runId,
     source: args.source,
     status,
     triggeredAt: args.triggeredAt,

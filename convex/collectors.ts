@@ -36,7 +36,11 @@ function encryptionKeys() {
   ].filter((key): key is string => Boolean(key))
 }
 
-async function collectTarget(ctx: ActionCtx, target: CollectionTarget) {
+async function collectTarget(
+  ctx: ActionCtx,
+  target: CollectionTarget,
+  runId: string,
+) {
   let outcome: 'operational' | 'attention' | 'unavailable'
   try {
     const credentials = await decryptCredentials(
@@ -55,6 +59,7 @@ async function collectTarget(ctx: ActionCtx, target: CollectionTarget) {
           : 'attention'
     await ctx.runMutation(internal.serviceInternal.markCollection, {
       serviceId: target.serviceId,
+      runId,
       snapshot,
     })
   } catch (error) {
@@ -65,6 +70,7 @@ async function collectTarget(ctx: ActionCtx, target: CollectionTarget) {
         : providerErrorCode(error)
     await ctx.runMutation(internal.serviceInternal.markCollection, {
       serviceId: target.serviceId,
+      runId,
       snapshot: unavailableSnapshot(target.provider),
       errorCode,
     })
@@ -85,14 +91,18 @@ async function collectInBatches(
   const results: Awaited<ReturnType<typeof collectTarget>>[] = []
   const projectIds = [...new Set(targets.map((target) => target.projectId))]
   for (const projectId of projectIds) {
+    const runId = crypto.randomUUID()
     const projectTargets = targets.filter((target) => target.projectId === projectId)
     const { aggregate, results: projectResults } = await collectProject(
       ctx,
       projectTargets,
+      Date.now(),
+      runId,
     )
     if (aggregate) {
       await ctx.runMutation(internal.checkTriggers.record, {
         source,
+        runId,
         ...aggregate,
       })
     }
@@ -105,12 +115,15 @@ async function collectProject(
   ctx: ActionCtx,
   targets: CollectionTarget[],
   triggeredAt = Date.now(),
+  runId: string = crypto.randomUUID(),
 ) {
   const results: Awaited<ReturnType<typeof collectTarget>>[] = []
   for (let index = 0; index < targets.length; index += 5) {
     results.push(
       ...(await Promise.all(
-        targets.slice(index, index + 5).map((target) => collectTarget(ctx, target)),
+        targets
+          .slice(index, index + 5)
+          .map((target) => collectTarget(ctx, target, runId)),
       )),
     )
   }
@@ -186,6 +199,7 @@ export const collectScheduledProjectPage = internalAction({
       ctx,
       page.page,
       args.triggeredAt,
+      args.runId,
     )
     const folded = foldScheduledPage(
       args.pending ?? null,

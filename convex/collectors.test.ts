@@ -80,7 +80,8 @@ describe('scheduled Service collection', () => {
       t.mutation(internal.collectorInternal.dispatchScheduledCollections, {}),
     ).resolves.toBe(1)
     await t.finishAllScheduledFunctions(() => vi.runAllTimers())
-    expect(await scheduledChecks()).toMatchObject([
+    const firstScheduledChecks = await scheduledChecks()
+    expect(firstScheduledChecks).toMatchObject([
       {
         serviceCount: 26,
         operationalCount: 0,
@@ -88,6 +89,12 @@ describe('scheduled Service collection', () => {
         unavailableCount: 26,
       },
     ])
+    const details = await owner.query(api.checkTriggers.getDetails, {
+      triggerId: firstScheduledChecks[0]._id,
+    })
+    expect(details.events).toHaveLength(26)
+    expect(new Set(details.events.map((event) => event.serviceId)).size).toBe(26)
+    expect(details.truncated).toBe(false)
 
     vi.setSystemTime(1_000 + 10 * MINUTE_MS)
     await expect(

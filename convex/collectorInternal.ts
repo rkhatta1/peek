@@ -134,7 +134,11 @@ export const advanceScheduledProjectRun = internalMutation({
 
     if (args.isDone) {
       for (const aggregate of args.completed) {
-        await insertCheckTrigger(ctx, { source: 'scheduled', ...aggregate })
+        await insertCheckTrigger(ctx, {
+          source: 'scheduled',
+          runId: args.runId,
+          ...aggregate,
+        })
       }
       const intervalMinutes =
         project.collectionIntervalMinutes ?? DEFAULT_COLLECTION_INTERVAL_MINUTES

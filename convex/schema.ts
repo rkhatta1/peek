@@ -111,7 +111,10 @@ export default defineSchema({
     projectId: v.id('projects'),
     serviceId: v.id('serviceConnections'),
     ownerId: v.string(),
+    runId: v.optional(v.string()),
     provider: providerValidator,
+    serviceName: v.optional(v.string()),
+    environment: v.optional(v.string()),
     capturedAt: v.number(),
     status: rawStatus,
     connections: v.number(),
@@ -125,6 +128,8 @@ export default defineSchema({
     errorCode: v.optional(v.string()),
   })
     .index('by_service_and_capturedAt', ['serviceId', 'capturedAt'])
+    .index('by_runId', ['runId'])
+    .index('by_project_and_capturedAt', ['projectId', 'capturedAt'])
     .index('by_client', ['clientId'])
     .index('by_project', ['projectId']),
 
@@ -144,6 +149,7 @@ export default defineSchema({
     clientId: v.id('clients'),
     projectId: v.id('projects'),
     ownerId: v.string(),
+    runId: v.optional(v.string()),
     source: v.union(
       v.literal('connection'),
       v.literal('manual'),
