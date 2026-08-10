@@ -7,6 +7,7 @@ import { v } from 'convex/values'
 import { internalMutation, query } from './_generated/server'
 import { requireActiveProjectForOwner, requireOwner } from './lib/domain'
 import { insertCheckTrigger } from './lib/checkTriggers'
+import { enforceLedgerPageSize } from './lib/pagination'
 
 const sourceValidator = v.union(
   v.literal('connection'),
@@ -42,6 +43,7 @@ export const list = query({
   handler: async (ctx, args) => {
     const ownerId = await requireOwner(ctx)
     await requireActiveProjectForOwner(ctx, ownerId, args.projectId)
+    enforceLedgerPageSize(args.paginationOpts.numItems)
     const result = args.attentionOnly
       ? await ctx.db
           .query('checkTriggers')

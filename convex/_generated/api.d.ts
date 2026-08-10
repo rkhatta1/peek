@@ -35,6 +35,7 @@ import type * as lib_codeAttribution from "../lib/codeAttribution.js";
 import type * as lib_domain from "../lib/domain.js";
 import type * as lib_ledgerTotals from "../lib/ledgerTotals.js";
 import type * as lib_monitoring from "../lib/monitoring.js";
+import type * as lib_pagination from "../lib/pagination.js";
 import type * as lib_providers from "../lib/providers.js";
 import type * as lib_secrets from "../lib/secrets.js";
 import type * as lib_validators from "../lib/validators.js";
@@ -78,6 +79,7 @@ declare const fullApi: ApiFromModules<{
   "lib/domain": typeof lib_domain;
   "lib/ledgerTotals": typeof lib_ledgerTotals;
   "lib/monitoring": typeof lib_monitoring;
+  "lib/pagination": typeof lib_pagination;
   "lib/providers": typeof lib_providers;
   "lib/secrets": typeof lib_secrets;
   "lib/validators": typeof lib_validators;

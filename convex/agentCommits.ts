@@ -6,6 +6,7 @@ import { v } from 'convex/values'
 
 import { mutation, query } from './_generated/server'
 import { requireActiveProjectForOwner, requireOwner } from './lib/domain'
+import { enforceLedgerPageSize } from './lib/pagination'
 
 const commitValidator = v.object({
   _id: v.id('agentCommits'),
@@ -32,6 +33,7 @@ export const list = query({
   handler: async (ctx, args) => {
     const ownerId = await requireOwner(ctx)
     await requireActiveProjectForOwner(ctx, ownerId, args.projectId)
+    enforceLedgerPageSize(args.paginationOpts.numItems)
     const connection = await ctx.db
       .query('codeConnections')
       .withIndex('by_project_and_provider_and_status', (q) =>

@@ -717,6 +717,21 @@ describe('Check and Agent ledgers', () => {
     expect(attention.page).toEqual([
       expect.objectContaining({ triggeredAt: 200, status: 'attention' }),
     ])
+    for (const numItems of [10, 20, 50]) {
+      const supportedPage = await owner.query(api.checkTriggers.list, {
+        projectId,
+        attentionOnly: false,
+        paginationOpts: { cursor: null, numItems },
+      })
+      expect(supportedPage.page).toHaveLength(2)
+    }
+    await expect(
+      owner.query(api.checkTriggers.list, {
+        projectId,
+        attentionOnly: false,
+        paginationOpts: { cursor: null, numItems: 51 },
+      }),
+    ).rejects.toThrow('Page size cannot exceed 50 items')
     expect(await owner.query(api.ledgerTotals.get, { projectId })).toEqual({
       agentCommits: 0,
       checkAttentionTriggers: 1,
@@ -799,6 +814,19 @@ describe('Check and Agent ledgers', () => {
       paginationOpts: { cursor: null, numItems: 10 },
     })
     expect(commits.page).toHaveLength(1)
+    for (const numItems of [10, 20, 50]) {
+      const supportedPage = await owner.query(api.agentCommits.list, {
+        projectId,
+        paginationOpts: { cursor: null, numItems },
+      })
+      expect(supportedPage.page).toHaveLength(1)
+    }
+    await expect(
+      owner.query(api.agentCommits.list, {
+        projectId,
+        paginationOpts: { cursor: null, numItems: 51 },
+      }),
+    ).rejects.toThrow('Page size cannot exceed 50 items')
     await owner.mutation(api.agentCommits.setComment, {
       commitId: commits.page[0]._id,
       comment: 'Verify the rollout guard before continuing.',
