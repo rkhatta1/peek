@@ -22,13 +22,17 @@ import {
   TooltipTrigger,
 } from '#/components/ui/tooltip'
 import { usePaginatedLedger } from '#/hooks/use-paginated-ledger'
+import {
+  ledgerCacheKey,
+  useFirstPageLedgerCache,
+} from '#/hooks/use-first-page-ledger-cache'
 import { AnimatedBackground } from '#/components/motion-primitives/animated-background'
 import { LedgerPagination } from '../ledger-pagination'
-import { useMonitoring } from '../monitoring-context'
+import { useMonitoring, useSelectionPageReady } from '../monitoring-context'
 import { pageTransitionItem } from '../page-transition-item'
 
 export function ChecksPage() {
-  const { selectedProject } = useMonitoring()
+  const { selectedProject, selectionDataReady } = useMonitoring()
   const [activeTab, setActiveTab] = useState('all')
   const [rowsPerPage, setRowsPerPage] = useState(20)
   const totals = useQuery(
@@ -36,6 +40,10 @@ export function ChecksPage() {
     selectedProject ? { projectId: selectedProject._id } : 'skip',
   )
   const attentionTotal = totals?.checkAttentionTriggers ?? 0
+  useSelectionPageReady(
+    selectionDataReady && !selectedProject,
+    selectedProject?._id ?? 'no-project',
+  )
 
   return (
     <div className="mx-auto w-full max-w-[1480px] p-4 md:p-6 lg:p-8">
@@ -79,6 +87,7 @@ export function ChecksPage() {
               attentionOnly={false}
               projectId={selectedProject._id}
               rowsPerPage={rowsPerPage}
+              revision={totals?.updatedAt}
               setRowsPerPage={setRowsPerPage}
               totalRows={totals?.checkTriggers ?? 0}
             />
@@ -96,6 +105,7 @@ export function ChecksPage() {
               attentionOnly
               projectId={selectedProject._id}
               rowsPerPage={rowsPerPage}
+              revision={totals?.updatedAt}
               setRowsPerPage={setRowsPerPage}
               totalRows={attentionTotal}
             />
@@ -111,24 +121,45 @@ export function ChecksPage() {
 function TriggerLedger({
   attentionOnly,
   projectId,
+  revision,
   rowsPerPage,
   setRowsPerPage,
   totalRows,
 }: {
   attentionOnly: boolean
   projectId: Id<'projects'>
+  revision: number | undefined
   rowsPerPage: number
   setRowsPerPage: (rows: number) => void
   totalRows: number
 }) {
+  const { selectionDataReady } = useMonitoring()
   const { results, status, loadMore } = usePaginatedQuery(
     api.checkTriggers.list,
     { projectId, attentionOnly },
     { initialNumItems: rowsPerPage },
   )
+  useSelectionPageReady(
+    selectionDataReady &&
+      revision !== undefined &&
+      status !== 'LoadingFirstPage',
+    `${projectId}:${attentionOnly ? 'attention' : 'all'}`,
+  )
+  const displayResults = useFirstPageLedgerCache({
+    cacheKey: ledgerCacheKey(
+      projectId,
+      'checks',
+      attentionOnly ? 'attention' : 'all',
+      rowsPerPage,
+    ),
+    networkRows: results,
+    revision,
+    rowsPerPage,
+    status,
+  })
   const pagination = usePaginatedLedger({
     loadMore,
-    results,
+    results: displayResults,
     rowsPerPage,
     status,
   })

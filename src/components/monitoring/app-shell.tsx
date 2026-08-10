@@ -114,20 +114,22 @@ function AppFrame() {
 
 function PageTransition() {
   const isLoading = useRouterState({ select: (state) => state.isLoading })
+  const { selectionTransitionLoading } = useMonitoring()
+  const loading = isLoading || selectionTransitionLoading
 
   return (
     <div
       className="relative isolate min-h-0 flex-1 overflow-hidden"
-      data-page-transition={isLoading ? 'loading' : 'idle'}
+      data-page-transition={loading ? 'loading' : 'idle'}
     >
       <div
-        aria-hidden={!isLoading}
+        aria-hidden={!loading}
         className="pointer-events-none absolute inset-0 z-0 grid place-items-center bg-background"
       >
         <PeekMark className="size-12 text-sm" />
       </div>
       <div
-        aria-busy={isLoading || undefined}
+        aria-busy={loading || undefined}
         className="peek-page relative z-10 h-full overflow-y-auto overscroll-contain bg-background"
       >
         <Outlet />

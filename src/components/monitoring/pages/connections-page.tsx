@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { MoreHorizontal, Plus } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Check, ChevronsUpDown, MoreHorizontal, Plus, RefreshCw } from 'lucide-react'
 
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
@@ -10,6 +10,14 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '#/components/ui/command'
 import {
   Dialog,
   DialogContent,
@@ -29,6 +37,7 @@ import {
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '#/components/ui/empty'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -46,8 +55,10 @@ import {
   TableHeader,
   TableRow,
 } from '#/components/ui/table'
+import { cn } from '#/lib/utils'
 import {
   useMonitoring,
+  useSelectionPageReady,
   type CodeConnection,
   type CodeConnectionConfiguration,
   type ProviderItem,
@@ -59,7 +70,16 @@ import { pageTransitionItem } from '../page-transition-item'
 type Service = ProviderItem['connection']
 
 export function ConnectionsPage() {
-  const { codeConnections, providers, selectedProject } = useMonitoring()
+  const {
+    codeConnections,
+    providers,
+    selectedProject,
+    selectionDataReady,
+  } = useMonitoring()
+  useSelectionPageReady(
+    selectionDataReady,
+    selectedProject?._id ?? 'no-project',
+  )
   const [connectOpen, setConnectOpen] = useState(false)
   const [codeConnectOpen, setCodeConnectOpen] = useState(false)
   const [editing, setEditing] = useState<Service | null>(null)
@@ -218,7 +238,9 @@ export function ConnectionsPage() {
                       {connection.externalSlug}
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground md:table-cell">
-                      main → production
+                      {connection.provider === 'github'
+                        ? connection.branch
+                        : 'main → production'}
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground tabular-nums lg:table-cell">
                       {formatDateTime(connection.lastValidatedAt)}
@@ -348,7 +370,7 @@ function CodeConnectionMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuGroup>
-          <DropdownMenuItem onSelect={onRotate}>Update credentials</DropdownMenuItem>
+          <DropdownMenuItem onSelect={onRotate}>Edit connection</DropdownMenuItem>
           <DropdownMenuItem className="text-destructive" onSelect={onRemove}>
             Delete
           </DropdownMenuItem>
@@ -369,13 +391,24 @@ function CodeConnectionDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { connectCodeConnection, selectedProject } = useMonitoring()
+  const {
+    connectCodeConnection,
+    listGitHubBranches,
+    selectedProject,
+  } = useMonitoring()
   const [provider, setProvider] = useState<'github' | 'vercel'>(
     connection?.provider ?? 'github',
   )
   const [repository, setRepository] = useState(
     connection?.provider === 'github' ? connection.externalSlug : '',
   )
+  const [branch, setBranch] = useState(
+    connection?.provider === 'github' ? connection.branch : '',
+  )
+  const [branches, setBranches] = useState<string[]>(
+    connection?.provider === 'github' ? [connection.branch] : [],
+  )
+  const [branchesLoading, setBranchesLoading] = useState(false)
   const [vercelProjectId, setVercelProjectId] = useState(
     connection?.provider === 'vercel' ? connection.externalId : '',
   )
@@ -392,8 +425,60 @@ function CodeConnectionDialog({
     ? provider
     : (availableProviders[0] ?? provider)
 
+  useEffect(() => {
+    if (!open || !selectedProject || connection?.provider !== 'github') return
+    let ignored = false
+    setBranchesLoading(true)
+    void listGitHubBranches({
+      projectId: selectedProject._id,
+      repository: connection.externalSlug,
+      connectionId: connection._id,
+    })
+      .then((items) => {
+        if (ignored) return
+        setBranches(items)
+        setBranch((current) =>
+          items.includes(current) ? current : (items[0] ?? ''),
+        )
+      })
+      .catch((cause) => {
+        if (!ignored) setError(codeConnectionErrorMessage(cause))
+      })
+      .finally(() => {
+        if (!ignored) setBranchesLoading(false)
+      })
+    return () => {
+      ignored = true
+    }
+  }, [connection?._id, listGitHubBranches, open, selectedProject?._id])
+
+  async function loadBranches() {
+    if (!selectedProject) return
+    setBranchesLoading(true)
+    setError('')
+    try {
+      const items = await listGitHubBranches({
+        projectId: selectedProject._id,
+        repository,
+        token: token || undefined,
+        connectionId:
+          connection?.provider === 'github' ? connection._id : undefined,
+      })
+      setBranches(items)
+      setBranch((current) =>
+        items.includes(current) ? current : (items[0] ?? ''),
+      )
+    } catch (cause) {
+      setError(codeConnectionErrorMessage(cause))
+    } finally {
+      setBranchesLoading(false)
+    }
+  }
+
   function close() {
     setRepository('')
+    setBranch('')
+    setBranches([])
     setVercelProjectId('')
     setToken('')
     setError('')
@@ -407,7 +492,14 @@ function CodeConnectionDialog({
     setError('')
     const configuration: CodeConnectionConfiguration =
       activeProvider === 'github'
-        ? { provider: 'github', repository, token }
+        ? {
+            provider: 'github',
+            repository,
+            branch,
+            token: token || undefined,
+            connectionId:
+              connection?.provider === 'github' ? connection._id : undefined,
+          }
         : { provider: 'vercel', projectId: vercelProjectId, token }
     try {
       await connectCodeConnection({
@@ -431,7 +523,7 @@ function CodeConnectionDialog({
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>
-              {connection ? 'Update code credentials' : 'Connect code source'}
+              {connection ? 'Edit code connection' : 'Connect code source'}
             </DialogTitle>
             <DialogDescription>
               Peek validates access before encrypting the token. Token values
@@ -472,14 +564,46 @@ function CodeConnectionDialog({
               <Input
                 autoComplete="off"
                 id="github-repository"
-                onChange={(event) => setRepository(event.target.value)}
+                onChange={(event) => {
+                  setRepository(event.target.value)
+                  setBranch('')
+                  setBranches([])
+                }}
                 placeholder="owner/repository"
                 required
                 value={repository}
               />
-              <p className="text-xs text-muted-foreground">
-                Attribution follows the latest commit on main at event time.
-              </p>
+              <div className="mt-2 grid gap-2">
+                <Label htmlFor="github-branch">Branch</Label>
+                <div className="flex gap-2">
+                  <BranchCombobox
+                    branches={branches}
+                    disabled={!branches.length || branchesLoading}
+                    onChange={setBranch}
+                    value={branch}
+                  />
+                  <Button
+                    aria-label="Load GitHub branches"
+                    disabled={
+                      branchesLoading ||
+                      !repository.trim() ||
+                      (!connection && !token.trim())
+                    }
+                    onClick={() => void loadBranches()}
+                    size="icon"
+                    type="button"
+                    variant="outline"
+                  >
+                    <RefreshCw
+                      aria-hidden="true"
+                      className={cn(branchesLoading && 'animate-spin')}
+                    />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Switching branches retains earlier history and syncs the selected branch immediately.
+                </p>
+              </div>
             </div>
           ) : (
             <div className="grid gap-2">
@@ -507,8 +631,14 @@ function CodeConnectionDialog({
               autoComplete="off"
               id="code-provider-token"
               onChange={(event) => setToken(event.target.value)}
-              placeholder={activeProvider === 'github' ? 'github_pat_…' : 'vcp_…'}
-              required
+              placeholder={
+                connection
+                  ? 'Leave blank to keep current token'
+                  : activeProvider === 'github'
+                    ? 'github_pat_…'
+                    : 'vcp_…'
+              }
+              required={activeProvider === 'vercel' || !connection}
               spellCheck={false}
               type="password"
               value={token}
@@ -524,13 +654,83 @@ function CodeConnectionDialog({
             <Button type="button" variant="outline" onClick={close}>
               Cancel
             </Button>
-            <Button disabled={saving || !availableProviders.length} type="submit">
+            <Button
+              disabled={
+                saving ||
+                !availableProviders.length ||
+                (activeProvider === 'github' && !branch)
+              }
+              type="submit"
+            >
               {saving ? 'Validating…' : connection ? 'Save connection' : 'Connect'}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function BranchCombobox({
+  branches,
+  disabled,
+  onChange,
+  value,
+}: {
+  branches: string[]
+  disabled: boolean
+  onChange: (branch: string) => void
+  value: string
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          aria-expanded={open}
+          className="min-w-0 flex-1 justify-between font-normal"
+          disabled={disabled}
+          id="github-branch"
+          role="combobox"
+          type="button"
+          variant="outline"
+        >
+          <span className="truncate">
+            {value || (disabled ? 'Load branches first' : 'Select branch')}
+          </span>
+          <ChevronsUpDown aria-hidden="true" className="opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-(--radix-popover-trigger-width) p-0"
+      >
+        <Command>
+          <CommandInput placeholder="Search branches…" />
+          <CommandList>
+            <CommandEmpty>No branch found.</CommandEmpty>
+            <CommandGroup>
+              {branches.map((item) => (
+                <CommandItem
+                  key={item}
+                  onSelect={() => {
+                    onChange(item)
+                    setOpen(false)
+                  }}
+                  value={item}
+                >
+                  <Check
+                    aria-hidden="true"
+                    className={cn(item === value ? 'opacity-100' : 'opacity-0')}
+                  />
+                  <span className="truncate">{item}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }
 

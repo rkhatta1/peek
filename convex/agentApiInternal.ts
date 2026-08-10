@@ -7,6 +7,7 @@ import {
   activeProjectForOwner,
   requireActiveProjectForOwner,
 } from './lib/domain'
+import { touchLedgerTotals } from './lib/ledgerTotals'
 
 const eventStatsValidator = v.object({
   status: v.union(v.literal('operational'), v.literal('attention')),
@@ -153,6 +154,11 @@ export const recordEventForToken = internalMutation({
         summary: args.summary,
         occurredAt: args.occurredAt,
         receivedAt: now,
+      })
+      await touchLedgerTotals(ctx, {
+        clientId: project.clientId,
+        projectId: project._id,
+        ownerId: token.ownerId,
       })
     }
     return {

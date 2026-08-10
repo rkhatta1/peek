@@ -15,7 +15,7 @@ Revocation and Project or Client deletion invalidate access immediately.
 With no active commit, status temporarily returns any legacy Project comment
 with null commit fields and null `eventStats`. Selecting commit guidance clears
 that rollout fallback permanently. Comments are created from the Agent page
-against a cached GitHub `main` commit. The first Check trigger at or after that
+against a cached commit from the selected GitHub branch. The first Check trigger at or after that
 commit supplies its event stats; without a later trigger, `eventStats` remains
 null.
 

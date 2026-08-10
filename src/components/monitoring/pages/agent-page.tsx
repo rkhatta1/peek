@@ -28,16 +28,21 @@ import {
 } from '#/components/ui/table'
 import { Textarea } from '#/components/ui/textarea'
 import { usePaginatedLedger } from '#/hooks/use-paginated-ledger'
+import {
+  invalidateProjectLedgerCache,
+  ledgerCacheKey,
+  useFirstPageLedgerCache,
+} from '#/hooks/use-first-page-ledger-cache'
 import { LedgerPagination } from '../ledger-pagination'
-import { useMonitoring } from '../monitoring-context'
+import { useMonitoring, useSelectionPageReady } from '../monitoring-context'
 import { pageTransitionItem } from '../page-transition-item'
 
 type Commit = FunctionReturnType<typeof api.agentCommits.list>['page'][number]
 
 export function AgentPage() {
-  const { codeConnections, selectedProject } = useMonitoring()
+  const { codeConnections, selectedProject, selectionDataReady } = useMonitoring()
   const github = codeConnections.find((connection) => connection.provider === 'github')
-  const syncMain = useAction(api.agentCommitActions.syncMain)
+  const syncBranch = useAction(api.agentCommitActions.syncBranch)
   const totals = useQuery(
     api.ledgerTotals.get,
     selectedProject ? { projectId: selectedProject._id } : 'skip',
@@ -46,13 +51,18 @@ export function AgentPage() {
   const [syncing, setSyncing] = useState(false)
   const [syncError, setSyncError] = useState('')
   const syncedConnection = useRef<string | null>(null)
+  useSelectionPageReady(
+    selectionDataReady && (!selectedProject || !github),
+    `${selectedProject?._id ?? 'no-project'}:${github?._id ?? 'no-github'}`,
+  )
 
   async function sync() {
     if (!selectedProject || !github) return
     setSyncing(true)
     setSyncError('')
+    invalidateProjectLedgerCache(selectedProject._id)
     try {
-      const result = await syncMain({ projectId: selectedProject._id })
+      const result = await syncBranch({ projectId: selectedProject._id })
       if (result.truncated) {
         setSyncError('Commit sync reached the 10,000 row safety limit.')
       }
@@ -64,10 +74,14 @@ export function AgentPage() {
   }
 
   useEffect(() => {
-    if (!github || syncedConnection.current === github._id) return
+    if (
+      !github ||
+      github.commitDataFresh ||
+      syncedConnection.current === github._id
+    ) return
     syncedConnection.current = github._id
     void sync()
-  }, [github?._id, selectedProject?._id])
+  }, [github?._id, github?.commitDataFresh, selectedProject?._id])
 
   return (
     <div className="mx-auto w-full max-w-[1480px] p-4 md:p-6 lg:p-8">
@@ -78,7 +92,7 @@ export function AgentPage() {
         <div>
           <h1 className="text-lg font-semibold">Agent</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Main-branch commit guidance and monitoring attribution.
+            Selected-branch commit guidance and monitoring attribution.
           </p>
         </div>
         <Button
@@ -97,17 +111,19 @@ export function AgentPage() {
           <AgentEmpty title="Select a Project first" />
         ) : !github ? (
           <AgentEmpty
-            description="Connect a GitHub repository to populate its main-branch commit ledger."
+            description="Connect a GitHub repository to populate its branch commit ledger."
             title="GitHub is not connected"
           />
         ) : (
           <CommitLedger
             key={`${selectedProject._id}-${rowsPerPage}`}
             projectId={selectedProject._id}
+            branch={github.branch}
             repository={github.externalSlug}
+            revision={totals?.updatedAt}
             rowsPerPage={rowsPerPage}
             setRowsPerPage={setRowsPerPage}
-            totalRows={totals?.agentCommits ?? 0}
+            totalRows={github.agentCommitCount ?? totals?.agentCommits ?? 0}
           />
         )}
       </div>
@@ -117,26 +133,44 @@ export function AgentPage() {
 }
 
 function CommitLedger({
+  branch,
   projectId,
   repository,
+  revision,
   rowsPerPage,
   setRowsPerPage,
   totalRows,
 }: {
+  branch: string
   projectId: Id<'projects'>
   repository: string
+  revision: number | undefined
   rowsPerPage: number
   setRowsPerPage: (rows: number) => void
   totalRows: number
 }) {
+  const { selectionDataReady } = useMonitoring()
   const { results, status, loadMore } = usePaginatedQuery(
     api.agentCommits.list,
     { projectId },
     { initialNumItems: rowsPerPage },
   )
+  useSelectionPageReady(
+    selectionDataReady &&
+      revision !== undefined &&
+      status !== 'LoadingFirstPage',
+    `${projectId}:${branch}`,
+  )
+  const displayResults = useFirstPageLedgerCache({
+    cacheKey: ledgerCacheKey(projectId, 'agent', branch, rowsPerPage),
+    networkRows: results,
+    revision,
+    rowsPerPage,
+    status,
+  })
   const pagination = usePaginatedLedger({
     loadMore,
-    results,
+    results: displayResults,
     rowsPerPage,
     status,
   })
@@ -159,6 +193,7 @@ function CommitLedger({
     setError('')
     try {
       await setComment({ commitId: selectedCommit._id, comment })
+      invalidateProjectLedgerCache(projectId)
       setSelectedCommit(null)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save comment')
@@ -173,7 +208,7 @@ function CommitLedger({
         <CardHeader className="border-b px-5 py-4">
           <CardTitle className="text-sm">{repository}</CardTitle>
           <CardDescription className="text-xs">
-            Commits reachable from main, newest first
+            Commits reachable from {branch}, newest first
           </CardDescription>
         </CardHeader>
         <Table className="table-fixed">
@@ -238,7 +273,7 @@ function CommitLedger({
                 <TableCell className="h-28 text-center text-muted-foreground" colSpan={5}>
                   {status === 'LoadingFirstPage'
                     ? 'Loading commits…'
-                    : 'No main-branch commits synced yet.'}
+                    : `No ${branch} commits synced yet.`}
                 </TableCell>
               </TableRow>
             )}

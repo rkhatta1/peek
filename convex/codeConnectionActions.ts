@@ -4,9 +4,10 @@ import { v } from 'convex/values'
 
 import { internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
-import { action, env } from './_generated/server'
+import { action, env, type ActionCtx } from './_generated/server'
 import {
   fetchGitHubAttributionAt,
+  fetchGitHubBranches,
   fetchVercelAttributionAt,
   validateGitHubRepository,
   validateVercelProject,
@@ -23,6 +24,7 @@ type ResolutionTarget = {
   provider: 'github' | 'vercel'
   externalId: string
   externalSlug: string
+  branch: string
   encryptedCredentials?: EncryptedCredentials
 }
 
@@ -35,7 +37,7 @@ const githubPullRequestValidator = v.object({
 
 const githubAttributionValidator = v.object({
   repository: v.string(),
-  branch: v.literal('main'),
+  branch: v.string(),
   sha: v.string(),
   committedAt: v.number(),
   message: v.string(),
@@ -82,7 +84,9 @@ export const connect = action({
       v.object({
         provider: v.literal('github'),
         repository: v.string(),
-        token: v.string(),
+        branch: v.string(),
+        token: v.optional(v.string()),
+        connectionId: v.optional(v.id('codeConnections')),
       }),
       v.object({
         provider: v.literal('vercel'),
@@ -100,11 +104,17 @@ export const connect = action({
     })
 
     let validated
-    const token = normalizeToken(args.configuration.token)
+    const token = await resolveConfigurationToken(
+      ctx,
+      ownerId,
+      args.projectId,
+      args.configuration,
+    )
     try {
       if (args.configuration.provider === 'github') {
         validated = await validateGitHubRepository({
           repository: args.configuration.repository,
+          branch: args.configuration.branch,
           token,
         })
       } else {
@@ -133,6 +143,41 @@ export const connect = action({
         ...validated,
       },
     )
+  },
+})
+
+export const listGitHubBranches = action({
+  args: {
+    projectId: v.id('projects'),
+    repository: v.string(),
+    token: v.optional(v.string()),
+    connectionId: v.optional(v.id('codeConnections')),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    const ownerId = await requireOwner(ctx)
+    await ctx.runQuery(internal.codeConnectionInternal.getProjectContext, {
+      ownerId,
+      projectId: args.projectId,
+    })
+    const token = await resolveConfigurationToken(
+      ctx,
+      ownerId,
+      args.projectId,
+      {
+        provider: 'github',
+        token: args.token,
+        connectionId: args.connectionId,
+      },
+    )
+    try {
+      return await fetchGitHubBranches({
+        repository: args.repository,
+        token,
+      })
+    } catch (error) {
+      throw new Error(codeConnectionErrorCode(error))
+    }
   },
 })
 
@@ -181,6 +226,7 @@ async function resolveGitHub(
     }
     const data = await fetchGitHubAttributionAt({
       repository: target.externalSlug,
+      branch: target.branch,
       observedAt,
       token: credentials.token,
     })
@@ -192,6 +238,43 @@ async function resolveGitHub(
       errorCode: codeConnectionErrorCode(error),
     }
   }
+}
+
+async function resolveConfigurationToken(
+  ctx: ActionCtx,
+  ownerId: string,
+  projectId: Id<'projects'>,
+  configuration:
+    | {
+        provider: 'github'
+        token?: string
+        connectionId?: Id<'codeConnections'>
+      }
+    | { provider: 'vercel'; token: string },
+) {
+  if (configuration.token?.trim()) return normalizeToken(configuration.token)
+  if (configuration.provider !== 'github' || !configuration.connectionId) {
+    throw new Error('INVALID_CONFIGURATION')
+  }
+  const targets: ResolutionTarget[] = await ctx.runQuery(
+    internal.codeConnectionInternal.listResolutionTargets,
+    { ownerId, projectId },
+  )
+  const target = targets.find(
+    (candidate) =>
+      candidate.connectionId === configuration.connectionId &&
+      candidate.provider === 'github',
+  )
+  if (!target?.encryptedCredentials) throw new Error('CREDENTIAL_NOT_CONFIGURED')
+  const credentials = await decryptCodeConnectionCredentials(
+    target.encryptedCredentials,
+    ownerId,
+    encryptionKeys(),
+  )
+  if (credentials.provider !== 'github') {
+    throw new Error('CREDENTIAL_PROVIDER_MISMATCH')
+  }
+  return normalizeToken(credentials.token)
 }
 
 async function resolveVercel(

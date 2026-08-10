@@ -20,10 +20,13 @@ and Upstash Redis services.
 
 An external source used to identify the code state associated with a Project's
 monitoring observation. A Code connection belongs to exactly one Project and
-does not produce metric snapshots. Peek supports one GitHub repository and one
-Vercel project per Project. GitHub attribution uses the latest commit reachable
-from `main` at the observation time; Vercel attribution uses the latest ready
-production deployment from `main` at that time.
+does not produce metric snapshots. Peek supports one active GitHub
+repository/branch selection and one Vercel project per Project. GitHub
+attribution uses the latest commit reachable from the selected branch at the
+observation time; Vercel attribution uses the latest ready production
+deployment from `main` at that time. Changing the selected GitHub branch
+preserves the prior branch's cached commits, performs a fresh GitHub sync, and
+withholds that branch's cache until the sync completes.
 
 ## Code attribution
 
@@ -51,19 +54,20 @@ A Project's latest provider snapshot remains fresh for its configured interval
 plus a five-minute delivery grace. After that limit, the UI marks the snapshot
 stale until a newer collection arrives.
 
-## Main commit
+## Branch commit
 
-A commit reachable from the connected GitHub repository's `main` branch and
-cached by Peek for the Agent ledger. GitHub remains authoritative for commit
-identity and history.
+A commit reachable from the connected GitHub repository's selected branch and
+cached by Peek for the Agent ledger. Commit caches belong to their branch and
+remain available if the Project later selects that branch again. GitHub remains
+authoritative for current commit identity and history.
 
 ## Commit event attribution
 
-The next Check trigger at or after a Main commit closes that commit's monitoring
-interval. Equivalently, commits after one Check trigger and at or before the
-next Check trigger are attributed to the next trigger. A commit remains pending
-when no later trigger exists. This is a time-based association, not proof that
-the commit caused the observed outcomes.
+The next Check trigger at or after a Branch commit closes that commit's
+monitoring interval. Equivalently, commits after one Check trigger and at or
+before the next Check trigger are attributed to the next trigger. A commit
+remains pending when no later trigger exists. This is a time-based association,
+not proof that the commit caused the observed outcomes.
 
 ## Commit comment
 

@@ -10,16 +10,26 @@ import {
 } from '#/components/ui/empty'
 import { Link } from '@tanstack/react-router'
 import { api } from '../../../../convex/_generated/api'
-import { useMonitoring } from '../monitoring-context'
+import { useMonitoring, useSelectionPageReady } from '../monitoring-context'
 import { formatTime } from '../monitoring-data'
 import { ChecksTable, ProviderCard } from '../monitoring-panels'
 import { pageTransitionItem } from '../page-transition-item'
 
 export function OverviewPage() {
-  const { checkedAt, providers, selectedClient, selectedProject } = useMonitoring()
+  const {
+    checkedAt,
+    providers,
+    selectedClient,
+    selectedProject,
+    selectionDataReady,
+  } = useMonitoring()
   const histories = useQuery(
     api.monitoring.getHistory,
     selectedProject ? { projectId: selectedProject._id } : 'skip',
+  )
+  useSelectionPageReady(
+    selectionDataReady && (!selectedProject || histories !== undefined),
+    selectedProject?._id ?? 'no-project',
   )
   const overviewProviders = useMemo(() => {
     const historiesByService = new Map(

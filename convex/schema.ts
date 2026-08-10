@@ -15,6 +15,11 @@ const rawStatus = v.union(
   v.literal('degraded'),
   v.literal('unavailable'),
 )
+const codeConnectionStatus = v.union(
+  v.literal('active'),
+  v.literal('inactive'),
+  v.literal('deleted'),
+)
 
 export default defineSchema({
   accessGateSettings: defineTable({
@@ -180,9 +185,12 @@ export default defineSchema({
     externalId: v.string(),
     externalSlug: v.string(),
     name: v.string(),
-    branch: v.literal('main'),
+    branch: v.string(),
     environment: v.literal('production'),
-    status: lifecycleStatusValidator,
+    status: codeConnectionStatus,
+    branchSelectedAt: v.optional(v.number()),
+    lastCommitSyncedAt: v.optional(v.number()),
+    agentCommitCount: v.optional(v.number()),
     lastSyncedHeadSha: v.optional(v.string()),
     lastCommitSyncStartedAt: v.optional(v.number()),
     commitSyncLease: v.optional(
@@ -197,6 +205,13 @@ export default defineSchema({
     .index('by_project_and_provider_and_status', [
       'projectId',
       'provider',
+      'status',
+    ])
+    .index('by_project_and_provider_and_externalId_and_branch_and_status', [
+      'projectId',
+      'provider',
+      'externalId',
+      'branch',
       'status',
     ]),
 

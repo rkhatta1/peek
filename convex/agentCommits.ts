@@ -6,6 +6,7 @@ import { v } from 'convex/values'
 
 import { mutation, query } from './_generated/server'
 import { requireActiveProjectForOwner, requireOwner } from './lib/domain'
+import { touchLedgerTotals } from './lib/ledgerTotals'
 import { enforceLedgerPageSize } from './lib/pagination'
 
 const commitValidator = v.object({
@@ -43,7 +44,13 @@ export const list = query({
           .eq('status', 'active'),
       )
       .unique()
-    if (!connection || connection.ownerId !== ownerId) {
+    if (
+      !connection ||
+      connection.ownerId !== ownerId ||
+      (connection.branchSelectedAt !== undefined &&
+        (connection.lastCommitSyncedAt === undefined ||
+          connection.lastCommitSyncedAt < connection.branchSelectedAt))
+    ) {
       return { page: [], continueCursor: '', isDone: true }
     }
     const result = await ctx.db
@@ -117,6 +124,11 @@ export const setComment = mutation({
         updatedAt: now,
       })
     }
+    await touchLedgerTotals(ctx, {
+      clientId: project.clientId,
+      projectId: project._id,
+      ownerId,
+    })
     return null
   },
 })

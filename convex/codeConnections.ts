@@ -26,8 +26,16 @@ export const listByProject = query({
         lastSyncedHeadSha: _lastSyncedHeadSha,
         lastCommitSyncStartedAt: _lastCommitSyncStartedAt,
         commitSyncLease: _commitSyncLease,
+        branchSelectedAt,
+        lastCommitSyncedAt,
         ...connection
-      }) => connection,
+      }) => ({
+        ...connection,
+        commitDataFresh:
+          branchSelectedAt === undefined ||
+          (lastCommitSyncedAt !== undefined &&
+            lastCommitSyncedAt >= branchSelectedAt),
+      }),
     )
   },
 })

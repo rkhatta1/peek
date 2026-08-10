@@ -2,7 +2,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -15,6 +17,10 @@ import {
   collectionFreshnessLimitMs,
   evaluateSnapshot,
 } from '../../../convex/lib/monitoring'
+import { invalidateProjectLedgerCache } from '#/hooks/use-first-page-ledger-cache'
+
+const SELECTION_EXIT_MS = 220
+const SELECTION_READY_TIMEOUT_MS = 8_000
 
 export type Client = FunctionReturnType<typeof api.clients.list>[number]
 export type Project = FunctionReturnType<
@@ -48,7 +54,13 @@ export type ServiceCredentials =
     }
 
 export type CodeConnectionConfiguration =
-  | { provider: 'github'; repository: string; token: string }
+  | {
+      provider: 'github'
+      repository: string
+      branch: string
+      token?: string
+      connectionId?: Id<'codeConnections'>
+    }
   | { provider: 'vercel'; projectId: string; token: string }
 
 type MonitoringContextValue = {
@@ -62,6 +74,9 @@ type MonitoringContextValue = {
   setSelectedClientId: (clientId: Id<'clients'>) => void
   selectedProject: Project | null
   selectedProjectId: Id<'projects'> | null
+  selectionDataReady: boolean
+  selectionTransitionLoading: boolean
+  completeSelectionTransition: () => void
   setSelectedProjectId: (projectId: Id<'projects'>) => void
   createClient: (name: string) => Promise<Id<'clients'>>
   updateClient: (clientId: Id<'clients'>, name: string) => Promise<void>
@@ -90,6 +105,12 @@ type MonitoringContextValue = {
     projectId: Id<'projects'>
     configuration: CodeConnectionConfiguration
   }) => Promise<Id<'codeConnections'>>
+  listGitHubBranches: (args: {
+    projectId: Id<'projects'>
+    repository: string
+    token?: string
+    connectionId?: Id<'codeConnections'>
+  }) => Promise<string[]>
   removeCodeConnection: (connectionId: Id<'codeConnections'>) => Promise<void>
   resolveCodeAttribution: (args: {
     projectId: Id<'projects'>
@@ -235,6 +256,10 @@ export function MonitoringProvider({ children }: { children: ReactNode }) {
     })
   })
   const connectCodeConnectionAction = useAction(api.codeConnectionActions.connect)
+  const listGitHubBranchesAction = useAction(
+    api.codeConnectionActions.listGitHubBranches,
+  )
+  const syncGitHubBranchAction = useAction(api.agentCommitActions.syncBranch)
   const removeCodeConnectionMutation = useMutation(
     api.codeConnections.remove,
   ).withOptimisticUpdate((store, args) => {
@@ -260,11 +285,60 @@ export function MonitoringProvider({ children }: { children: ReactNode }) {
       >
     >
   >({})
+  const [selectionTransitionLoading, setSelectionTransitionLoading] =
+    useState(false)
+  const selectionUpdateTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const selectionReadyTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const completeSelectionTransition = useCallback(() => {
+    if (selectionReadyTimer.current) {
+      clearTimeout(selectionReadyTimer.current)
+      selectionReadyTimer.current = undefined
+    }
+    setSelectionTransitionLoading(false)
+  }, [])
+
+  const startSelectionTransition = useCallback(
+    (update: () => void) => {
+      if (selectionUpdateTimer.current) clearTimeout(selectionUpdateTimer.current)
+      if (selectionReadyTimer.current) clearTimeout(selectionReadyTimer.current)
+      setSelectionTransitionLoading(true)
+      const reducedMotion = window.matchMedia(
+        '(prefers-reduced-motion: reduce)',
+      ).matches
+      selectionUpdateTimer.current = setTimeout(
+        () => {
+          selectionUpdateTimer.current = undefined
+          update()
+          selectionReadyTimer.current = setTimeout(
+            completeSelectionTransition,
+            SELECTION_READY_TIMEOUT_MS,
+          )
+        },
+        reducedMotion ? 0 : SELECTION_EXIT_MS,
+      )
+    },
+    [completeSelectionTransition],
+  )
+
+  useEffect(
+    () => () => {
+      if (selectionUpdateTimer.current) clearTimeout(selectionUpdateTimer.current)
+      if (selectionReadyTimer.current) clearTimeout(selectionReadyTimer.current)
+    },
+    [],
+  )
 
   const setSelectedClientId = useCallback((clientId: Id<'clients'>) => {
-    setRequestedClientId(clientId)
-    setRequestedProjectId(null)
-  }, [])
+    startSelectionTransition(() => {
+      setRequestedClientId(clientId)
+      setRequestedProjectId(null)
+    })
+  }, [startSelectionTransition])
+
+  const setSelectedProjectId = useCallback((projectId: Id<'projects'>) => {
+    startSelectionTransition(() => setRequestedProjectId(projectId))
+  }, [startSelectionTransition])
 
   const providers = useMemo(
     () =>
@@ -290,6 +364,11 @@ export function MonitoringProvider({ children }: { children: ReactNode }) {
     selectedProjectRefreshState?.checkedAt ??
     Math.max(0, ...providers.map((item) => item.latest?.capturedAt ?? 0))
   const refreshing = selectedProjectRefreshState?.refreshing ?? false
+  const selectionDataReady =
+    !selectedClient ||
+    (projects !== undefined &&
+      (!selectedProject ||
+        (rawSummary !== undefined && codeConnections !== undefined)))
 
   const createClient = useCallback(
     async (name: string) => {
@@ -314,6 +393,7 @@ export function MonitoringProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     if (!selectedProject) return
     const projectId = selectedProject._id
+    invalidateProjectLedgerCache(projectId)
     setProjectRefreshState((current) => ({
       ...current,
       [projectId]: {
@@ -354,7 +434,10 @@ export function MonitoringProvider({ children }: { children: ReactNode }) {
         setSelectedClientId,
         selectedProject,
         selectedProjectId: selectedProject?._id ?? null,
-        setSelectedProjectId: setRequestedProjectId,
+        selectionDataReady,
+        selectionTransitionLoading,
+        completeSelectionTransition,
+        setSelectedProjectId,
         createClient,
         updateClient: async (clientId, name) => {
           await updateClientMutation({ clientId, name })
@@ -379,7 +462,15 @@ export function MonitoringProvider({ children }: { children: ReactNode }) {
         removeService: async (serviceId) => {
           await removeServiceMutation({ serviceId })
         },
-        connectCodeConnection: connectCodeConnectionAction,
+        connectCodeConnection: async (args) => {
+          const connectionId = await connectCodeConnectionAction(args)
+          if (args.configuration.provider === 'github') {
+            invalidateProjectLedgerCache(args.projectId)
+            await syncGitHubBranchAction({ projectId: args.projectId })
+          }
+          return connectionId
+        },
+        listGitHubBranches: listGitHubBranchesAction,
         removeCodeConnection: async (connectionId) => {
           await removeCodeConnectionMutation({ connectionId })
         },
@@ -400,6 +491,15 @@ export function useMonitoring() {
     throw new Error('useMonitoring must be used inside MonitoringProvider')
   }
   return context
+}
+
+export function useSelectionPageReady(ready: boolean, identity: string) {
+  const { completeSelectionTransition } = useMonitoring()
+  useEffect(() => {
+    if (!ready) return
+    const timer = setTimeout(completeSelectionTransition, 0)
+    return () => clearTimeout(timer)
+  }, [completeSelectionTransition, identity, ready])
 }
 
 function toEvaluatableSnapshot(snapshot: SummaryProvider['latest'] & {}) {

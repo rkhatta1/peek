@@ -327,6 +327,15 @@
   }
 }
 
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes peek-item-out {
   from {
     opacity: 1;

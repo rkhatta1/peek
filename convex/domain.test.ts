@@ -326,6 +326,128 @@ describe('Project code connections', () => {
     ).rejects.toThrow('Project not found')
   })
 
+  test('retains branch commit data while withholding it until the branch resyncs', async () => {
+    const t = testBackend()
+    const owner = t.withIdentity({ tokenIdentifier: 'peek|owner' })
+    const clientId = await owner.mutation(api.clients.create, { name: 'Acme' })
+    const projectId = await owner.mutation(api.projects.create, {
+      clientId,
+      name: 'Atlas',
+    })
+    const encryptedCredentials = {
+      algorithm: 'AES-GCM' as const,
+      binding: 'code-binding',
+      ciphertext: 'github-client-ciphertext',
+      iv: 'code-initialization-vector',
+      keyId: 'key-v1',
+    }
+    const mainConnectionId = await owner.mutation(
+      internal.codeConnectionInternal.commitValidatedConnection,
+      {
+        ownerId: 'peek|owner',
+        projectId,
+        provider: 'github',
+        externalId: '123456',
+        externalSlug: 'acme/atlas',
+        name: 'acme/atlas',
+        branch: 'main',
+        encryptedCredentials,
+      },
+    )
+    await owner.mutation(internal.codeConnectionInternal.claimCommitSync, {
+      ownerId: 'peek|owner',
+      projectId,
+      connectionId: mainConnectionId,
+      runId: 'main-sync',
+    })
+    await owner.mutation(internal.agentCommitInternal.upsertPage, {
+      ownerId: 'peek|owner',
+      projectId,
+      connectionId: mainConnectionId,
+      runId: 'main-sync',
+      commits: [
+        {
+          sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          title: 'Main commit',
+          author: 'Octocat',
+          committedAt: 100,
+          url: 'https://github.com/acme/atlas/commit/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        },
+      ],
+    })
+    await owner.mutation(internal.agentCommitInternal.finishSync, {
+      ownerId: 'peek|owner',
+      connectionId: mainConnectionId,
+      runId: 'main-sync',
+      headSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    })
+
+    const releaseConnectionId = await owner.mutation(
+      internal.codeConnectionInternal.commitValidatedConnection,
+      {
+        ownerId: 'peek|owner',
+        projectId,
+        provider: 'github',
+        externalId: '123456',
+        externalSlug: 'acme/atlas',
+        name: 'acme/atlas',
+        branch: 'release/2026',
+        encryptedCredentials,
+      },
+    )
+    expect(releaseConnectionId).not.toBe(mainConnectionId)
+    await expect(
+      owner.query(api.agentCommits.list, {
+        projectId,
+        paginationOpts: { cursor: null, numItems: 20 },
+      }),
+    ).resolves.toMatchObject({ page: [] })
+
+    const restoredMainConnectionId = await owner.mutation(
+      internal.codeConnectionInternal.commitValidatedConnection,
+      {
+        ownerId: 'peek|owner',
+        projectId,
+        provider: 'github',
+        externalId: '123456',
+        externalSlug: 'acme/atlas',
+        name: 'acme/atlas',
+        branch: 'main',
+        encryptedCredentials,
+      },
+    )
+    expect(restoredMainConnectionId).toBe(mainConnectionId)
+    await expect(
+      owner.query(api.agentCommits.list, {
+        projectId,
+        paginationOpts: { cursor: null, numItems: 20 },
+      }),
+    ).resolves.toMatchObject({ page: [] })
+
+    await owner.mutation(internal.codeConnectionInternal.claimCommitSync, {
+      ownerId: 'peek|owner',
+      projectId,
+      connectionId: mainConnectionId,
+      runId: 'main-resync',
+    })
+    await owner.mutation(internal.agentCommitInternal.finishSync, {
+      ownerId: 'peek|owner',
+      connectionId: mainConnectionId,
+      runId: 'main-resync',
+      headSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    })
+    const commits = await owner.query(api.agentCommits.list, {
+      projectId,
+      paginationOpts: { cursor: null, numItems: 20 },
+    })
+    expect(commits.page).toEqual([
+      expect.objectContaining({
+        connectionId: mainConnectionId,
+        title: 'Main commit',
+      }),
+    ])
+  })
+
   test('leases commit syncs and fences stale page and finish writes', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000)
     try {
@@ -736,6 +858,7 @@ describe('Check and Agent ledgers', () => {
       agentCommits: 0,
       checkAttentionTriggers: 1,
       checkTriggers: 2,
+      updatedAt: expect.any(Number),
     })
   })
 
@@ -827,10 +950,19 @@ describe('Check and Agent ledgers', () => {
         paginationOpts: { cursor: null, numItems: 51 },
       }),
     ).rejects.toThrow('Page size cannot exceed 50 items')
+    const totalsBeforeComment = await owner.query(api.ledgerTotals.get, {
+      projectId,
+    })
     await owner.mutation(api.agentCommits.setComment, {
       commitId: commits.page[0]._id,
       comment: 'Verify the rollout guard before continuing.',
     })
+    const totalsAfterComment = await owner.query(api.ledgerTotals.get, {
+      projectId,
+    })
+    expect(totalsAfterComment.updatedAt).toBeGreaterThan(
+      totalsBeforeComment.updatedAt,
+    )
     const { token } = await owner.action(api.agentApiActions.rotateToken, {
       projectId,
     })

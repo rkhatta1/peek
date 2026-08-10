@@ -39,6 +39,7 @@ export function ProjectSwitcher() {
     projects,
     selectedClient,
     selectedProject,
+    selectionTransitionLoading,
     setSelectedProjectId,
   } = useMonitoring()
 
@@ -65,7 +66,7 @@ export function ProjectSwitcher() {
           <Button
             aria-label="Select project"
             className="h-8 max-w-28 justify-between gap-2 px-2 text-xs sm:max-w-60"
-            disabled={!selectedClient}
+            disabled={!selectedClient || selectionTransitionLoading}
             variant="ghost"
           >
             <span className="truncate">{selectedProject?.name ?? 'Add project'}</span>

@@ -34,8 +34,13 @@ export function ClientSwitcher() {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const { clients, createClient, selectedClient, setSelectedClientId } =
-    useMonitoring()
+  const {
+    clients,
+    createClient,
+    selectedClient,
+    selectionTransitionLoading,
+    setSelectedClientId,
+  } = useMonitoring()
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault()
@@ -59,6 +64,7 @@ export function ClientSwitcher() {
           <Button
             aria-label="Select client"
             className="ml-10 h-8 max-w-28 justify-between gap-2 px-2 text-xs sm:max-w-52 md:ml-0"
+            disabled={selectionTransitionLoading}
             variant="ghost"
           >
             <span className="truncate">{selectedClient?.name ?? 'Add client'}</span>

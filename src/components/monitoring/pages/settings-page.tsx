@@ -32,7 +32,7 @@ import { Label } from '#/components/ui/label'
 import { Separator } from '#/components/ui/separator'
 import { Switch } from '#/components/ui/switch'
 import { useTheme } from '#/hooks/use-theme'
-import { useMonitoring } from '../monitoring-context'
+import { useMonitoring, useSelectionPageReady } from '../monitoring-context'
 import { pageTransitionItem } from '../page-transition-item'
 
 export function SettingsPage() {
@@ -41,6 +41,7 @@ export function SettingsPage() {
     removeProject,
     selectedClient,
     selectedProject,
+    selectionDataReady,
     updateClient,
     updateProject,
   } = useMonitoring()
@@ -61,6 +62,10 @@ export function SettingsPage() {
   const agentSettings = useQuery(
     api.agentApi.getSettings,
     selectedProject ? { projectId: selectedProject._id } : 'skip',
+  )
+  useSelectionPageReady(
+    selectionDataReady && (!selectedProject || agentSettings !== undefined),
+    selectedProject?._id ?? 'no-project',
   )
   const rotateAgentToken = useAction(api.agentApiActions.rotateToken)
   const revokeAgentToken = useMutation(api.agentApi.revokeToken)

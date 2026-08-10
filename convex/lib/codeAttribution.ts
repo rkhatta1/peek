@@ -33,7 +33,7 @@ type VercelDeploymentResponse = {
 
 export type GitHubAttribution = {
   repository: string
-  branch: 'main'
+  branch: string
   sha: string
   committedAt: number
   message: string
@@ -70,14 +70,17 @@ export type ValidatedCodeConnection = {
   externalId: string
   externalSlug: string
   name: string
+  branch?: string
 }
 
 export async function validateGitHubRepository({
   repository,
+  branch,
   token,
   fetcher = fetch,
 }: {
   repository: string
+  branch?: string
   token: string
   fetcher?: Fetcher
 }): Promise<ValidatedCodeConnection> {
@@ -89,13 +92,69 @@ export async function validateGitHubRepository({
     id?: unknown
     full_name?: unknown
     name?: unknown
+    default_branch?: unknown
   }>(fetcher, url, githubHeaders(token), 'GITHUB')
   const fullName = requiredString(response.full_name, 'GITHUB_INVALID_RESPONSE')
+  const selectedBranch = normalizeGitHubBranch(
+    branch ?? requiredString(response.default_branch, 'GITHUB_INVALID_RESPONSE'),
+  )
+  const branchUrl = new URL(
+    `https://api.github.com/repos/${encodeRepository(fullName)}/branches/${encodeURIComponent(selectedBranch)}`,
+  )
+  const branchResponse = await fetchJson<{ name?: unknown }>(
+    fetcher,
+    branchUrl,
+    githubHeaders(token),
+    'GITHUB',
+  )
+  if (
+    requiredString(branchResponse.name, 'GITHUB_INVALID_RESPONSE') !==
+    selectedBranch
+  ) {
+    throw new Error('GITHUB_INVALID_RESPONSE')
+  }
   return {
     externalId: String(requiredNumber(response.id, 'GITHUB_INVALID_RESPONSE')),
     externalSlug: fullName,
     name: fullName,
+    branch: selectedBranch,
   }
+}
+
+export async function fetchGitHubBranches({
+  repository,
+  token,
+  fetcher = fetch,
+}: {
+  repository: string
+  token: string
+  fetcher?: Fetcher
+}) {
+  const normalizedRepository = normalizeGitHubRepository(repository)
+  const url = new URL(
+    `https://api.github.com/repos/${encodeRepository(normalizedRepository)}/branches`,
+  )
+  url.searchParams.set('per_page', '100')
+  const names: string[] = []
+  for (let page = 1; page <= 10; page += 1) {
+    const pageUrl = new URL(url)
+    if (page > 1) pageUrl.searchParams.set('page', String(page))
+    const branches = await fetchJson<Array<{ name?: unknown }>>(
+      fetcher,
+      pageUrl,
+      githubHeaders(token),
+      'GITHUB',
+    )
+    names.push(
+      ...branches.map((branch) =>
+        normalizeGitHubBranch(
+          requiredString(branch.name, 'GITHUB_INVALID_RESPONSE'),
+        ),
+      ),
+    )
+    if (branches.length < 100) return names
+  }
+  throw new Error('GITHUB_BRANCH_LIMIT')
 }
 
 export async function validateVercelProject({
@@ -124,11 +183,13 @@ export async function validateVercelProject({
 
 export async function fetchGitHubAttributionAt({
   repository,
+  branch = 'main',
   observedAt,
   token,
   fetcher = fetch,
 }: {
   repository: string
+  branch?: string
   observedAt: number
   token: string
   fetcher?: Fetcher
@@ -136,7 +197,7 @@ export async function fetchGitHubAttributionAt({
   const commitsUrl = new URL(
     `https://api.github.com/repos/${encodeRepository(repository)}/commits`,
   )
-  commitsUrl.searchParams.set('sha', 'main')
+  commitsUrl.searchParams.set('sha', branch)
   commitsUrl.searchParams.set('until', new Date(observedAt).toISOString())
   commitsUrl.searchParams.set('per_page', '1')
 
@@ -167,7 +228,7 @@ export async function fetchGitHubAttributionAt({
 
   return {
     repository,
-    branch: 'main',
+    branch,
     sha,
     committedAt,
     message: requiredString(commit.commit?.message, 'GITHUB_INVALID_RESPONSE').split(
@@ -187,12 +248,14 @@ export async function fetchGitHubAttributionAt({
 
 export async function fetchGitHubMainCommitsPage({
   repository,
+  branch = 'main',
   token,
   page,
   perPage = 100,
   fetcher = fetch,
 }: {
   repository: string
+  branch?: string
   token: string
   page: number
   perPage?: number
@@ -204,7 +267,7 @@ export async function fetchGitHubMainCommitsPage({
   const url = new URL(
     `https://api.github.com/repos/${encodeRepository(repository)}/commits`,
   )
-  url.searchParams.set('sha', 'main')
+  url.searchParams.set('sha', branch)
   url.searchParams.set('per_page', String(perPage))
   url.searchParams.set('page', String(page))
   const commits = await fetchJson<GitHubCommitResponse[]>(
@@ -375,6 +438,14 @@ function normalizeGitHubRepository(value: string) {
     throw new Error('INVALID_GITHUB_REPOSITORY')
   }
   return repository
+}
+
+function normalizeGitHubBranch(value: string) {
+  const branch = value.trim()
+  if (!branch || branch.length > 255 || /[\r\n]/.test(branch)) {
+    throw new Error('GITHUB_INVALID_CONFIGURATION')
+  }
+  return branch
 }
 
 function normalizeExternalId(value: string, label: string) {

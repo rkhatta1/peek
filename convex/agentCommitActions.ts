@@ -23,11 +23,12 @@ type ResolutionTarget = {
   provider: 'github' | 'vercel'
   externalId: string
   externalSlug: string
+  branch: string
   lastSyncedHeadSha?: string
   encryptedCredentials?: EncryptedCredentials
 }
 
-export const syncMain = action({
+export const syncBranch = action({
   args: { projectId: v.id('projects') },
   returns: v.object({ synced: v.number(), truncated: v.boolean() }),
   handler: async (ctx, args) => {
@@ -55,6 +56,7 @@ export const syncMain = action({
     }
     const firstPage = await fetchGitHubMainCommitsPage({
       repository: target.externalSlug,
+      branch: target.branch,
       token: credentials.token,
       page: 1,
       perPage: PAGE_SIZE,
@@ -91,6 +93,7 @@ export const syncMain = action({
             provider: 'github',
             externalId: target.externalId,
             externalSlug: target.externalSlug,
+            branch: target.branch,
             name: target.externalSlug,
             encryptedCredentials: target.encryptedCredentials,
             replace: true,
@@ -110,6 +113,7 @@ export const syncMain = action({
           ? firstPage
           : await fetchGitHubMainCommitsPage({
               repository: target.externalSlug,
+              branch: target.branch,
               token: credentials.token,
               page,
               perPage: PAGE_SIZE,

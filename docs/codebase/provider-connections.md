@@ -52,16 +52,20 @@ demand it.
 GitHub and Vercel are Project-level Code connections, separate from monitored
 Services. Each Project supports one active connection per code provider.
 
-- GitHub stores the validated repository ID and `owner/repository` name. Event
-  drawers request `GET /repos/{owner}/{repo}/commits` with `sha=main`,
+- GitHub stores the validated repository ID, `owner/repository` name, and
+  selected branch. Event drawers request `GET /repos/{owner}/{repo}/commits`
+  with `sha=<selected branch>`,
   `until=<observed time>`, and `per_page=1`, then request up to three pull
   requests associated with that commit.
-- The Agent page incrementally syncs `main` commits in GitHub pages of 100,
+- The Agent page incrementally syncs the selected branch in GitHub pages of 100,
   stops when it reaches a cached SHA, and stores only bounded commit metadata.
   Sync is capped at 10,000 commits and one request per connection per minute.
   A renewable 60-second lease fences overlapping and stale sync writes. Provider
   requests time out after 15 seconds. Its Convex ledger uses indexed cursor
   pagination.
+- Changing branches archives the prior branch connection and its commit ledger,
+  reactivates retained history when selected again, and always performs a fresh
+  GitHub sync before that history is exposed.
 - Vercel stores the validated project ID and name. Event drawers request ready
   production deployments from `main` created before the observation, then
   select the newest deployment whose ready timestamp is not after the event.
@@ -96,6 +100,9 @@ Services. Each Project supports one active connection per code provider.
 - Each Project collection writes one immutable Check trigger with aggregate
   outcomes. Checks and Agent ledgers use Convex cursor pagination; denormalized
   Project counters provide exact table totals without scanning either ledger.
+  Each ledger's first page is also stored in browser local storage and guarded
+  by the Project ledger revision. Refreshes, comments, Agent events, branch
+  syncs, and new collection results invalidate or advance that revision.
 - Client and Project lists are indexed, owner-scoped, and capped at 100.
 - Deletes disappear optimistically in the UI, then perform bounded recursive
   cleanup in scheduled Convex mutations.

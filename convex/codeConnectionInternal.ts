@@ -2,7 +2,11 @@ import { v } from 'convex/values'
 
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
-import { internalMutation, internalQuery } from './_generated/server'
+import {
+  internalMutation,
+  internalQuery,
+  type MutationCtx,
+} from './_generated/server'
 import { requireActiveProjectForOwner } from './lib/domain'
 import {
   codeProviderValidator,
@@ -17,6 +21,7 @@ const internalConnectionValidator = v.object({
   provider: codeProviderValidator,
   externalId: v.string(),
   externalSlug: v.string(),
+  branch: v.string(),
   lastSyncedHeadSha: v.optional(v.string()),
   encryptedCredentials: v.optional(encryptedCredentialsValidator),
 })
@@ -61,6 +66,7 @@ export const listResolutionTargets = internalQuery({
           provider: connection.provider,
           externalId: connection.externalId,
           externalSlug: connection.externalSlug,
+          branch: connection.branch,
           lastSyncedHeadSha: connection.lastSyncedHeadSha,
           encryptedCredentials: credentials
             ? {
@@ -149,6 +155,7 @@ export const commitValidatedConnection = internalMutation({
     externalId: v.string(),
     externalSlug: v.string(),
     name: v.string(),
+    branch: v.optional(v.string()),
     encryptedCredentials: encryptedCredentialsValidator,
     replace: v.optional(v.boolean()),
     commitSyncRunId: v.optional(v.string()),
@@ -176,15 +183,82 @@ export const commitValidatedConnection = internalMutation({
       throw new Error('COMMIT_SYNC_STALE')
     }
     const now = Date.now()
+    const branch = normalizeBranch(args.branch ?? 'main')
     let connectionId: Id<'codeConnections'>
     const repositoryChanged =
       existing?.provider === 'github' &&
-      (existing.externalId !== args.externalId || args.replace === true)
-    if (existing && !repositoryChanged) {
+      existing.externalId !== args.externalId
+    const branchChanged =
+      existing?.provider === 'github' &&
+      !repositoryChanged &&
+      args.replace !== true &&
+      existing.branch !== branch
+    const replacementRequired = repositoryChanged || args.replace === true
+    if (existing && branchChanged) {
+      const legacyCount = existing.agentCommitCount ??
+        (await ctx.db
+          .query('ledgerTotals')
+          .withIndex('by_project', (q) => q.eq('projectId', project._id))
+          .unique())?.agentCommits ??
+        0
+      await ctx.db.patch(existing._id, {
+        status: 'inactive',
+        agentCommitCount: legacyCount,
+        commitSyncLease: undefined,
+        updatedAt: now,
+      })
+      const archived = await ctx.db
+        .query('codeConnections')
+        .withIndex(
+          'by_project_and_provider_and_externalId_and_branch_and_status',
+          (q) =>
+            q
+              .eq('projectId', project._id)
+              .eq('provider', 'github')
+              .eq('externalId', args.externalId)
+              .eq('branch', branch)
+              .eq('status', 'inactive'),
+        )
+        .order('desc')
+        .first()
+      if (archived) {
+        await ctx.db.patch(archived._id, {
+          externalSlug: args.externalSlug,
+          name: args.name,
+          status: ACTIVE,
+          branchSelectedAt: now,
+          commitSyncLease: undefined,
+          lastCommitSyncStartedAt: undefined,
+          lastValidatedAt: now,
+          updatedAt: now,
+        })
+        connectionId = archived._id
+      } else {
+        connectionId = await ctx.db.insert('codeConnections', {
+          clientId: project.clientId,
+          projectId: project._id,
+          ownerId: args.ownerId,
+          provider: 'github',
+          externalId: args.externalId,
+          externalSlug: args.externalSlug,
+          name: args.name,
+          branch,
+          environment: 'production',
+          status: ACTIVE,
+          branchSelectedAt: now,
+          agentCommitCount: 0,
+          lastValidatedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+      await clearActiveCommit(ctx, project._id, args.ownerId, now)
+    } else if (existing && !replacementRequired) {
       await ctx.db.patch(existing._id, {
         externalId: args.externalId,
         externalSlug: args.externalSlug,
         name: args.name,
+        branch,
         lastValidatedAt: now,
         updatedAt: now,
       })
@@ -208,24 +282,16 @@ export const commitValidatedConnection = internalMutation({
         externalId: args.externalId,
         externalSlug: args.externalSlug,
         name: args.name,
-        branch: 'main',
+        branch,
         environment: 'production',
         status: ACTIVE,
+        ...(args.provider === 'github' ? { agentCommitCount: 0 } : {}),
         lastValidatedAt: now,
         createdAt: now,
         updatedAt: now,
       })
-      if (repositoryChanged) {
-        const endpoint = await ctx.db
-          .query('agentEndpoints')
-          .withIndex('by_project', (q) => q.eq('projectId', project._id))
-          .unique()
-        if (endpoint?.ownerId === args.ownerId) {
-          await ctx.db.patch(endpoint._id, {
-            activeCommitId: undefined,
-            updatedAt: now,
-          })
-        }
+      if (replacementRequired) {
+        await clearActiveCommit(ctx, project._id, args.ownerId, now)
         await ctx.scheduler.runAfter(
           0,
           internal.cleanup.deletedCodeConnection,
@@ -274,4 +340,30 @@ function isActiveGitHubConnection(
 
 function requireRunId(runId: string) {
   if (!runId || runId.length > 100) throw new Error('INVALID_COMMIT_SYNC_RUN')
+}
+
+function normalizeBranch(value: string) {
+  const branch = value.trim()
+  if (!branch || branch.length > 255 || /[\r\n]/.test(branch)) {
+    throw new Error('INVALID_GITHUB_BRANCH')
+  }
+  return branch
+}
+
+async function clearActiveCommit(
+  ctx: MutationCtx,
+  projectId: Id<'projects'>,
+  ownerId: string,
+  now: number,
+) {
+  const endpoint = await ctx.db
+    .query('agentEndpoints')
+    .withIndex('by_project', (q) => q.eq('projectId', projectId))
+    .unique()
+  if (endpoint?.ownerId === ownerId) {
+    await ctx.db.patch(endpoint._id, {
+      activeCommitId: undefined,
+      updatedAt: now,
+    })
+  }
 }

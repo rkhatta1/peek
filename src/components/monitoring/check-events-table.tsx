@@ -282,7 +282,7 @@ function CodeAttributionPanel({
         <CardHeader className="px-4 py-3">
           <CardTitle className="text-sm">GitHub</CardTitle>
           <CardDescription className="text-xs">
-            Latest main commit at observation time
+            Latest selected-branch commit at observation time
           </CardDescription>
         </CardHeader>
         <CardContent className="border-t px-4 py-3">

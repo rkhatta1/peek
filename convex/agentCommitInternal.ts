@@ -56,12 +56,14 @@ export const finishSync = internalMutation({
     if (args.headSha && !/^[a-f0-9]{40}$/i.test(args.headSha)) {
       throw new Error('Invalid GitHub head SHA')
     }
+    const now = Date.now()
     await ctx.db.patch(connection._id, {
       ...(args.headSha
         ? { lastSyncedHeadSha: args.headSha.toLowerCase() }
         : {}),
       commitSyncLease: undefined,
-      updatedAt: Date.now(),
+      lastCommitSyncedAt: now,
+      updatedAt: now,
     })
     return true
   },
@@ -141,6 +143,15 @@ export const upsertPage = internalMutation({
       }
     }
     if (inserted) {
+      const legacyTotal = connection.agentCommitCount ??
+        (await ctx.db
+          .query('ledgerTotals')
+          .withIndex('by_project', (q) => q.eq('projectId', project._id))
+          .unique())?.agentCommits ??
+        0
+      await ctx.db.patch(connection._id, {
+        agentCommitCount: legacyTotal + inserted,
+      })
       await incrementLedgerTotals(
         ctx,
         {

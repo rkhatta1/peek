@@ -9,6 +9,7 @@ export const get = query({
     agentCommits: v.number(),
     checkAttentionTriggers: v.number(),
     checkTriggers: v.number(),
+    updatedAt: v.number(),
   }),
   handler: async (ctx, args) => {
     const ownerId = await requireOwner(ctx)
@@ -21,6 +22,7 @@ export const get = query({
       agentCommits: totals?.agentCommits ?? 0,
       checkAttentionTriggers: totals?.checkAttentionTriggers ?? 0,
       checkTriggers: totals?.checkTriggers ?? 0,
+      updatedAt: totals?.updatedAt ?? 0,
     }
   },
 })

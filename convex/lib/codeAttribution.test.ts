@@ -2,9 +2,11 @@ import { describe, expect, test, vi } from 'vitest'
 
 import {
   fetchGitHubAttributionAt,
+  fetchGitHubBranches,
   fetchGitHubMainCommitsPage,
   fetchVercelAttributionAt,
   isGitHubCommitAncestor,
+  validateGitHubRepository,
 } from './codeAttribution'
 
 const observedAt = Date.parse('2026-08-08T10:30:00.000Z')
@@ -59,6 +61,96 @@ describe('code attribution providers', () => {
     })
     expect(commit.title).toHaveLength(500)
     expect(commit.author).toHaveLength(200)
+  })
+
+  test('fetches commits from the selected GitHub branch', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json([]))
+
+    await fetchGitHubMainCommitsPage({
+      repository: 'acme/app',
+      branch: 'release/2026',
+      token: 'github-token',
+      page: 1,
+      fetcher,
+    })
+
+    expect(fetcher.mock.calls[0]?.[0].toString()).toBe(
+      'https://api.github.com/repos/acme/app/commits?sha=release%2F2026&per_page=100&page=1',
+    )
+  })
+
+  test('validates and stores the selected GitHub branch', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          id: 123,
+          full_name: 'acme/app',
+          name: 'app',
+          default_branch: 'main',
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ name: 'release/2026' }),
+      )
+
+    await expect(
+      validateGitHubRepository({
+        repository: 'acme/app',
+        branch: 'release/2026',
+        token: 'github-token',
+        fetcher,
+      }),
+    ).resolves.toEqual({
+      externalId: '123',
+      externalSlug: 'acme/app',
+      name: 'acme/app',
+      branch: 'release/2026',
+    })
+    expect(fetcher.mock.calls[1]?.[0].toString()).toBe(
+      'https://api.github.com/repos/acme/app/branches/release%2F2026',
+    )
+  })
+
+  test('lists bounded GitHub branch names for the connection picker', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      Response.json([{ name: 'main' }, { name: 'release/2026' }]),
+    )
+
+    await expect(
+      fetchGitHubBranches({
+        repository: 'acme/app',
+        token: 'github-token',
+        fetcher,
+      }),
+    ).resolves.toEqual(['main', 'release/2026'])
+    expect(fetcher.mock.calls[0]?.[0].toString()).toBe(
+      'https://api.github.com/repos/acme/app/branches?per_page=100',
+    )
+  })
+
+  test('paginates GitHub branches instead of silently omitting later names', async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      name: `branch-${index}`,
+    }))
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(firstPage))
+      .mockResolvedValueOnce(Response.json([{ name: 'branch-100' }]))
+
+    const branches = await fetchGitHubBranches({
+      repository: 'acme/app',
+      token: 'github-token',
+      fetcher,
+    })
+
+    expect(branches).toHaveLength(101)
+    expect(branches.at(-1)).toBe('branch-100')
+    expect(fetcher.mock.calls[1]?.[0].toString()).toBe(
+      'https://api.github.com/repos/acme/app/branches?per_page=100&page=2',
+    )
   })
 
   test('detects whether the previously synced head remains on main', async () => {

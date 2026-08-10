@@ -33,7 +33,10 @@ export async function incrementLedgerTotals(
     ),
   }
   if (current) {
-    await ctx.db.patch(current._id, { ...next, updatedAt: Date.now() })
+    await ctx.db.patch(current._id, {
+      ...next,
+      updatedAt: nextRevision(current.updatedAt),
+    })
     return
   }
   await ctx.db.insert('ledgerTotals', {
@@ -41,4 +44,35 @@ export async function incrementLedgerTotals(
     ...next,
     updatedAt: Date.now(),
   })
+}
+
+export async function touchLedgerTotals(
+  ctx: MutationCtx,
+  scope: {
+    clientId: Id<'clients'>
+    projectId: Id<'projects'>
+    ownerId: string
+  },
+) {
+  const current = await ctx.db
+    .query('ledgerTotals')
+    .withIndex('by_project', (q) => q.eq('projectId', scope.projectId))
+    .unique()
+  if (current) {
+    await ctx.db.patch(current._id, {
+      updatedAt: nextRevision(current.updatedAt),
+    })
+    return
+  }
+  await ctx.db.insert('ledgerTotals', {
+    ...scope,
+    agentCommits: 0,
+    checkAttentionTriggers: 0,
+    checkTriggers: 0,
+    updatedAt: Date.now(),
+  })
+}
+
+function nextRevision(current: number) {
+  return Math.max(Date.now(), current + 1)
 }
